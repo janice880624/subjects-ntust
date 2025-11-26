@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成員資訊與分組卡片</title>
+    <!-- 引入 Tailwind CSS 腳本 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 設定字體為 Inter，並提供 fallback */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb; /* 淺灰背景 */
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <header class="mb-8 text-center">
+        <h1 class="text-4xl font-extrabold text-gray-900 mb-2">團隊成員資訊總覽</h1>
+        <p class="text-xl text-gray-600">共 <span id="memberCount" class="font-semibold text-blue-600">0</span> 位成員 | 點擊卡片查看詳細資訊</p>
+    </header>
+
+    <!-- 載入指示器 -->
+    <div id="loadingIndicator" class="text-center text-xl text-gray-500 my-10">
+        正在從 Google Sheet 載入資料...
+    </div>
+
+    <!-- 成員卡片容器 -->
+    <div id="cardsContainer" class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <!-- 卡片將由 JavaScript 動態生成於此 -->
+    </div>
+
+    <!-- 彈出式視窗 (Modal) 用於顯示詳細日期 -->
+    <div id="modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+        <div id="modalContent" class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 m-4 transform transition-all duration-300 scale-95">
+            <div class="flex justify-between items-start border-b pb-3 mb-4">
+                <h2 id="modalName" class="text-2xl font-bold text-gray-800"></h2>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 p-2 -mr-2 rounded-full transition duration-150">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold text-blue-800 mb-2 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                        物理治療日期 (Physio Dates)
+                    </h3>
+                    <div id="modalPhysioDates" class="text-gray-700 text-sm flex flex-wrap gap-2"></div>
+                </div>
+
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold text-green-800 mb-2 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        運動治療日期 (Sports Therapy Dates)
+                    </h3>
+                    <div id="modalSportsTherapyDates" class="text-gray-700 text-sm flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+
+            <p id="modalNoDates" class="hidden text-center text-gray-500 mt-4">無相關治療日期紀錄。</p>
+        </div>
+    </div>
+
+
+    <script>
+        // ----------------------------------------------------
+        // IMPORTANT: Google Apps Script Web App 執行網址
+        // ----------------------------------------------------
+        const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz_oL69zdN4OuLSTX-sObRcz1dR9Ooge7pA7f1JN4d36Y_kPIzge3Vb3ppSJxsVx37nbQ/exec'; 
+        // ----------------------------------------------------
+        
+        let memberData = [];
+        const MAX_RETRIES = 3;
+        const INITIAL_DELAY_MS = 1000;
+
+        // 格式化日期：將任何日期字串或 Date 物件轉換為 YYYY-MM-DD 格式
+        function formatDate(dateInput) {
+            if (!dateInput) return '無紀錄';
+            let date;
+
+            // 嘗試解析為 Date 物件
+            try {
+                date = new Date(dateInput);
+                // 檢查是否為有效日期
+                if (isNaN(date.getTime())) {
+                    return dateInput; // 如果無法解析，返回原始輸入
+                }
+            } catch (e) {
+                return dateInput; // 如果解析失敗，返回原始輸入
+            }
+
+            // 使用本地時區的 getFullYear/Month/Date 來獲取使用者預期的日期。
+            const year = date.getFullYear();
+            // getMonth() 回傳 0-11
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+
+            return `${year}-${month}-${day}`;
+        }
+
+
+        // 渲染卡片到 DOM
+        function renderCards(data) {
+            const container = document.getElementById('cardsContainer');
+            const memberCount = document.getElementById('memberCount');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+
+            loadingIndicator.classList.add('hidden'); // 隱藏載入指示器
+            container.innerHTML = ''; // 清空現有內容
+            memberCount.textContent = data.length; // 更新成員總數
+
+            if (data.length === 0) {
+                 container.innerHTML = '<p class="text-center text-xl text-red-500 mt-10 w-full">表格中無資料。</p>';
+                 return;
+            }
+
+            data.forEach(member => {
+                // 確保成員有一個 ID，用於 Modal 查找
+                const memberId = member.id || member.name;
+
+                // --- 根據 Group 選擇更顯眼的標籤顏色 (已更新為淺色背景) ---
+                let groupColor = 'bg-indigo-100 text-indigo-800'; // 預設顏色 (淺靛藍)
+                if (member.group.includes('運動')) {
+                    groupColor = 'bg-blue-50 text-blue-800'; // 淺藍
+                } else if (member.group.includes('營養')) {
+                    groupColor = 'bg-red-100 text-red-900'; // 淺紅
+                }
+                // --- 結束顏色更新 ---
+
+                // SubGroup 標籤顏色 (維持原樣)
+                let subGroupColor = 'bg-purple-100 text-purple-800';
+                if (member.subGroup.includes('週期')) {
+                    subGroupColor = 'bg-yellow-50 text-yellow-800'; // 淺藍
+                } else if (member.subGroup.includes('控制')) {
+                    subGroupColor = 'bg-gray-100 text-gray-900'; // 淺紅
+                }
+
+                // 處理日期顯示 (只顯示最新的一個日期，詳細日期在 Modal 中顯示)
+                const getLatestDate = (dateString) => {
+                    if (!dateString) return '無紀錄';
+                    // 逗號分割、去除空白，並過濾空字串
+                    const dates = dateString.split(',').map(d => d.trim()).filter(d => d);
+                    if (dates.length === 0) return '無紀錄';
+                    
+                    // 格式化所有日期，然後排序
+                    const formattedDates = dates.map(date => formatDate(date));
+                    
+                    // 排序並返回最新日期 (最後一個)
+                    return formattedDates.sort().reverse()[0];
+                };
+
+                const latestPhysio = getLatestDate(member.physioDates);
+                const latestSports = getLatestDate(member.sportsTherapyDates);
+                
+                // 檢查是否有任何治療紀錄
+                const hasTherapy = latestPhysio !== '無紀錄' || latestSports !== '無紀錄';
+                const therapyStyle = hasTherapy ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300';
+                
+                // 處理頭像錯誤
+                const avatarFallback = `this.onerror=null; this.src='https://placehold.co/64x64/CCCCCC/333333?text=${member.name[0] || '?'};'`;
+
+                const cardHtml = `
+                    <div class="bg-white rounded-xl shadow-lg p-6 flex flex-col hover:shadow-xl transition duration-300 cursor-pointer ${therapyStyle}" 
+                         onclick="openModal('${memberId}')">
+                        
+                        <!-- 頭像與基本資訊 -->
+                        <div class="flex items-center mb-4 border-b pb-4">
+                            <img src="${member.avatarUrl}" 
+                                 onerror="${avatarFallback}"
+                                 alt="${member.name} 的頭像" 
+                                 class="w-16 h-16 rounded-full object-cover mr-4 ring-2 ring-offset-2 ring-blue-500" />
+                            
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-900">${member.name}</h2>
+                                <!-- Tags / 分組標籤 -->
+                                <div class="flex flex-wrap gap-2 mt-1">
+                                    <span class="px-3 py-1 text-xs font-semibold rounded-full ${groupColor}">
+                                        ${member.group}
+                                    </span>
+                                    <span class="px-3 py-1 text-xs font-semibold rounded-full ${subGroupColor}">
+                                        ${member.subGroup}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 治療日期摘要 -->
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="font-medium text-gray-600">最近物理治療:</span>
+                                <span class="px-2 py-1 text-xs font-semibold rounded-lg ${latestPhysio === '無紀錄' ? 'bg-gray-100 text-gray-500' : 'bg-blue-500 text-white'}">
+                                    ${latestPhysio}
+                                
+                                </span>
+                            </div>
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="font-medium text-gray-600">最近運動治療:</span>
+                                <span class="px-2 py-1 text-xs font-semibold rounded-lg ${latestSports === '無紀錄' ? 'bg-gray-100 text-gray-500' : 'bg-green-500 text-white'}">
+                                    ${latestSports}
+                                </span>
+                            </div>
+                        </div>
+
+                        <p class="mt-4 text-xs text-center text-gray-400">點擊查看所有日期紀錄</p>
+                    </div>
+                `;
+                container.innerHTML += cardHtml;
+            });
+        }
+        
+        // ----------------------------------------------------
+        // 從 Google Apps Script Web App 獲取資料 (帶有重試機制)
+        // ----------------------------------------------------
+        async function fetchDataAndRender() {
+            if (GAS_WEB_APP_URL.includes('YOUR_GAS_EXEC_URL_HERE')) {
+                document.getElementById('loadingIndicator').textContent = '錯誤：請替換 GAS_WEB_APP_URL 為您的 Web App 網址。';
+                return;
+            }
+
+            try {
+                let lastError = null;
+                let data = null;
+
+                for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+                    try {
+                        const response = await fetch(GAS_WEB_APP_URL, {
+                            method: 'GET',
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
+                        }
+
+                        // 由於 GAS 已經設為回傳 JSON，這裡使用 response.json()
+                        data = await response.json(); 
+                        
+                        // 成功獲取資料，跳出重試循環
+                        lastError = null; 
+                        break; 
+
+                    } catch (error) {
+                        lastError = error;
+                        if (attempt < MAX_RETRIES - 1) {
+                            // 延遲並重試 (指數退避)
+                            const delay = INITIAL_DELAY_MS * Math.pow(2, attempt);
+                            console.warn(`Fetch 嘗試失敗 (第 ${attempt + 1}/${MAX_RETRIES} 次)。正在重試 (延遲 ${delay}ms)...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                        }
+                    }
+                }
+                
+                if (lastError) {
+                    throw lastError; // 如果所有重試都失敗，拋出最後的錯誤
+                }
+
+                memberData = data;
+                
+                // 檢查回傳資料是否為陣列
+                if (!Array.isArray(memberData)) {
+                    console.error("GAS 回傳的資料結構錯誤:", memberData);
+                    document.getElementById('loadingIndicator').classList.remove('hidden');
+                    const errorMessage = memberData && typeof memberData === 'object' && memberData.error 
+                                         ? `GAS 腳本回報錯誤: ${memberData.error}` 
+                                         : '資料格式不正確，請確認 Google Apps Script 部署狀態和資料回傳格式。';
+
+                    document.getElementById('loadingIndicator').innerHTML = `<p class="text-red-600">${errorMessage}</p>`;
+                    return; 
+                }
+
+                renderCards(memberData);
+
+            } catch (error) {
+                console.error("載入資料時發生錯誤:", error);
+                document.getElementById('loadingIndicator').classList.remove('hidden');
+                
+                let userMessage = `資料載入失敗，請檢查網路連線或 Web App 狀態。<br/>錯誤訊息: ${error.message}`;
+
+                // 針對 Failed to fetch 錯誤，提供明確的故障排除指南
+                if (error.message.includes('Failed to fetch') || error.message.includes('network')) {
+                    userMessage = `
+                        <p class="font-bold text-lg">連線失敗 (Failed to fetch) - 請檢查 GAS 部署！</p>
+                        <p class="text-sm mt-2 font-semibold">這不是網頁程式碼問題，請務必在 Google Apps Script 執行以下步驟：</p>
+                        <ul class="list-disc list-inside text-left mx-auto max-w-md mt-3 space-y-2 text-sm">
+                            <li><span class="font-bold text-blue-800">1. 權限設定 (最重要):</span>
+                                <ul class="list-none pl-4"><li>確認部署的 Web App 存取權限 (Who has access) 是「<span class="text-green-600 font-bold">任何人 (Anyone)</span>」。</li></ul>
+                            </li>
+                            <li><span class="font-bold text-blue-800">2. 重新部署:</span>
+                                <ul class="list-none pl-4"><li>對 GAS 腳本的任何變更（包含權限），請務必點擊部署 > 管理部署作業 > 編輯 > <span class="text-red-600 font-bold">部署新版本</span>。</li></ul>
+                            </li>
+                            <li><span class="font-bold text-blue-800">3. 網址確認:</span>
+                                <ul class="list-none pl-4"><li>確認 Web App 的執行網址與網頁程式碼中的 \`GAS_WEB_APP_URL\` 完全一致。</li></ul>
+                            </li>
+                        </ul>
+                        <p class="text-xs mt-4 text-gray-600">瀏覽器錯誤: ${error.message}</p>
+                    `;
+                }
+
+                document.getElementById('loadingIndicator').innerHTML = `<div class="text-red-600 p-4 bg-red-100 rounded-lg">${userMessage}</div>`;
+
+            }
+        }
+
+
+        // --- Modal 邏輯 ---
+
+        const modal = document.getElementById('modal');
+        const modalName = document.getElementById('modalName');
+        const modalPhysioDates = document.getElementById('modalPhysioDates');
+        const modalSportsTherapyDates = document.getElementById('modalSportsTherapyDates');
+        const modalNoDates = document.getElementById('modalNoDates');
+
+        // 打開 Modal
+        function openModal(memberId) {
+            // 使用 find 尋找匹配的成員。由於 id 可能被覆蓋為 name，這裡統一使用字串比較
+            const member = memberData.find(m => String(m.id || m.name) === String(memberId));
+            if (!member) return;
+
+            modalName.textContent = member.name + " 的治療紀錄";
+            
+            // 渲染日期標籤
+            const renderDateTags = (datesString, colorClass) => {
+                if (!datesString) return '';
+                // 逗號分割、去除空白，並過濾空字串
+                return datesString.split(',')
+                    .map(d => d.trim())
+                    .filter(d => d)
+                    .map(date => `<span class="px-3 py-1 rounded-full font-medium ${colorClass} shadow-md">${formatDate(date)}</span>`)
+                    .join('');
+            };
+
+            const physioTags = renderDateTags(member.physioDates, 'bg-blue-200 text-blue-900');
+            const sportsTags = renderDateTags(member.sportsTherapyDates, 'bg-green-200 text-green-900');
+
+            modalPhysioDates.innerHTML = physioTags || '<span class="text-gray-500 italic">無紀錄</span>';
+            modalSportsTherapyDates.innerHTML = sportsTags || '<span class="text-gray-500 italic">無紀錄</span>';
+
+            // 檢查是否有任何紀錄
+            const hasAnyDates = physioTags !== '' || sportsTags !== '';
+            modalNoDates.classList.toggle('hidden', hasAnyDates);
+
+            // 顯示 Modal
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            document.getElementById('modalContent').classList.remove('scale-95');
+        }
+
+        // 關閉 Modal
+        function closeModal() {
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            document.getElementById('modalContent').classList.add('scale-95');
+        }
+
+        // 點擊 Modal 外部關閉
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // 網頁載入完成後執行
+        window.onload = () => {
+            fetchDataAndRender();
+        };
+    </script>
+
+</body>
+</html>

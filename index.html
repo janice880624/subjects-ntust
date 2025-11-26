@@ -77,7 +77,7 @@
 
         // 格式化日期：將任何日期字串或 Date 物件轉換為 YYYY-MM-DD 格式
         function formatDate(dateInput) {
-            if (!dateInput) return '無紀錄';
+            if (!dateInput) return '';
             let date;
 
             // 嘗試解析為 Date 物件
@@ -85,10 +85,10 @@
                 date = new Date(dateInput);
                 // 檢查是否為有效日期
                 if (isNaN(date.getTime())) {
-                    return dateInput; // 如果無法解析，返回原始輸入
+                    return ''; 
                 }
             } catch (e) {
-                return dateInput; // 如果解析失敗，返回原始輸入
+                return ''; 
             }
 
             // 使用本地時區的 getFullYear/Month/Date 來獲取使用者預期的日期。
@@ -99,7 +99,43 @@
 
             return `${year}-${month}-${day}`;
         }
+        
+        // --- 核心函數：處理日期字串，計算次數，並返回最新日期 ---
+        function processDates(dateString) {
+            if (!dateString) {
+                return { latestDate: '無紀錄', count: 0, allDates: [] };
+            }
 
+            // 修正：同時處理英文逗號(,)和中文頓號(、)作為分隔符，以應對 Google Sheet 的資料格式
+            const rawDates = dateString
+                .split(/[,、]/) 
+                .map(d => d.trim())
+                .filter(d => d);
+            
+            if (rawDates.length === 0) {
+                return { latestDate: '無紀錄', count: 0, allDates: [] };
+            }
+            
+            // 格式化所有日期 (同時過濾無效日期)
+            const formattedDates = rawDates
+                .map(date => formatDate(date))
+                .filter(date => date !== ''); // 移除無效或未解析的日期
+
+            if (formattedDates.length === 0) {
+                return { latestDate: '無紀錄', count: 0, allDates: [] };
+            }
+
+            // 總次數
+            const count = formattedDates.length;
+            
+            // 排序並返回最新日期 (最新的日期會排在最後面)
+            // YYYY-MM-DD 格式的字串排序是正確的日期排序
+            const sortedDates = formattedDates.sort();
+            const latestDate = sortedDates[sortedDates.length - 1];
+
+            return { latestDate, count, allDates: formattedDates };
+        }
+        // ------------------------------------------------------------------
 
         // 渲染卡片到 DOM
         function renderCards(data) {
@@ -120,6 +156,16 @@
                 // 確保成員有一個 ID，用於 Modal 查找
                 const memberId = member.id || member.name;
 
+                // --- 呼叫新的處理函數 ---
+                const physioData = processDates(member.physioDates);
+                const sportsData = processDates(member.sportsTherapyDates);
+                
+                const latestPhysio = physioData.latestDate;
+                const latestSports = sportsData.latestDate;
+                const physioCount = physioData.count;
+                const sportsCount = sportsData.count;
+                // -------------------------
+
                 // --- 根據 Group 選擇更顯眼的標籤顏色 (已更新為淺色背景) ---
                 let groupColor = 'bg-indigo-100 text-indigo-800'; // 預設顏色 (淺靛藍)
                 if (member.group.includes('運動')) {
@@ -137,29 +183,13 @@
                     subGroupColor = 'bg-gray-100 text-gray-900'; // 淺紅
                 }
 
-                // 處理日期顯示 (只顯示最新的一個日期，詳細日期在 Modal 中顯示)
-                const getLatestDate = (dateString) => {
-                    if (!dateString) return '無紀錄';
-                    // 逗號分割、去除空白，並過濾空字串
-                    const dates = dateString.split(',').map(d => d.trim()).filter(d => d);
-                    if (dates.length === 0) return '無紀錄';
-                    
-                    // 格式化所有日期，然後排序
-                    const formattedDates = dates.map(date => formatDate(date));
-                    
-                    // 排序並返回最新日期 (最後一個)
-                    return formattedDates.sort().reverse()[0];
-                };
-
-                const latestPhysio = getLatestDate(member.physioDates);
-                const latestSports = getLatestDate(member.sportsTherapyDates);
                 
-                // 檢查是否有任何治療紀錄
-                const hasTherapy = latestPhysio !== '無紀錄' || latestSports !== '無紀錄';
+                // 檢查是否有任何治療紀錄 (用來設定左側綠色邊框)
+                const hasTherapy = physioCount > 0 || sportsCount > 0;
                 const therapyStyle = hasTherapy ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300';
                 
                 // 處理頭像錯誤
-                const avatarFallback = `this.onerror=null; this.src='https://placehold.co/64x64/CCCCCC/333333?text=${member.name[0] || '?'};'`;
+                const avatarFallback = `this.onerror=null; this.src='https://placehold.co/64x64/CCCCCC/333333?text=${member.name[0] || '?'}'`;
 
                 const cardHtml = `
                     <div class="bg-white rounded-xl shadow-lg p-6 flex flex-col hover:shadow-xl transition duration-300 cursor-pointer ${therapyStyle}" 
@@ -192,7 +222,6 @@
                                 <span class="font-medium text-gray-600">最近物理治療:</span>
                                 <span class="px-2 py-1 text-xs font-semibold rounded-lg ${latestPhysio === '無紀錄' ? 'bg-gray-100 text-gray-500' : 'bg-blue-500 text-white'}">
                                     ${latestPhysio}
-                                
                                 </span>
                             </div>
                             <div class="flex justify-between items-center text-sm">
@@ -202,6 +231,19 @@
                                 </span>
                             </div>
                         </div>
+
+                        <!-- 總次數顯示 -->
+                        <div class="border-t border-gray-100 pt-3 mt-4 space-y-2 text-sm">
+                            <div class="flex justify-between items-center">
+                                <span class="font-medium text-blue-600">物理治療總次數:</span>
+                                <span class="font-bold text-blue-700">${physioCount} 次</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="font-medium text-green-600">運動治療總次數:</span>
+                                <span class="font-bold text-green-700">${sportsCount} 次</span>
+                            </div>
+                        </div>
+
 
                         <p class="mt-4 text-xs text-center text-gray-400">點擊查看所有日期紀錄</p>
                     </div>
@@ -316,22 +358,25 @@
             // 使用 find 尋找匹配的成員。由於 id 可能被覆蓋為 name，這裡統一使用字串比較
             const member = memberData.find(m => String(m.id || m.name) === String(memberId));
             if (!member) return;
+            
+            // 重新處理日期數據以供 Modal 渲染
+            const physioData = processDates(member.physioDates);
+            const sportsData = processDates(member.sportsTherapyDates);
+
 
             modalName.textContent = member.name + " 的治療紀錄";
             
             // 渲染日期標籤
-            const renderDateTags = (datesString, colorClass) => {
-                if (!datesString) return '';
-                // 逗號分割、去除空白，並過濾空字串
-                return datesString.split(',')
-                    .map(d => d.trim())
-                    .filter(d => d)
-                    .map(date => `<span class="px-3 py-1 rounded-full font-medium ${colorClass} shadow-md">${formatDate(date)}</span>`)
+            const renderDateTags = (formattedDates, colorClass) => {
+                if (formattedDates.length === 0) return '';
+                // 這裡 formattedDates 已經是 YYYY-MM-DD 格式的陣列
+                return formattedDates
+                    .map(date => `<span class="px-3 py-1 rounded-full font-medium ${colorClass} shadow-md">${date}</span>`)
                     .join('');
             };
 
-            const physioTags = renderDateTags(member.physioDates, 'bg-blue-200 text-blue-900');
-            const sportsTags = renderDateTags(member.sportsTherapyDates, 'bg-green-200 text-green-900');
+            const physioTags = renderDateTags(physioData.allDates, 'bg-blue-200 text-blue-900');
+            const sportsTags = renderDateTags(sportsData.allDates, 'bg-green-200 text-green-900');
 
             modalPhysioDates.innerHTML = physioTags || '<span class="text-gray-500 italic">無紀錄</span>';
             modalSportsTherapyDates.innerHTML = sportsTags || '<span class="text-gray-500 italic">無紀錄</span>';

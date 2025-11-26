@@ -23,7 +23,7 @@
 
     <!-- 載入指示器 -->
     <div id="loadingIndicator" class="text-center text-xl text-gray-500 my-10">
-        正在從 Google Sheet 載入資料...
+        正在等待密碼...
     </div>
 
     <!-- 成員卡片容器 -->
@@ -62,16 +62,33 @@
             <p id="modalNoDates" class="hidden text-center text-gray-500 mt-4">無相關治療日期紀錄。</p>
         </div>
     </div>
+    
+    <!-- 密碼輸入 Modal -->
+    <div id="passwordModal" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 m-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">存取受限</h2>
+            <p class="text-gray-600 mb-4">請輸入密碼以查看團隊成員資訊。</p>
+            <input type="password" id="passwordInput" placeholder="請輸入密碼..." 
+                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 mb-3"
+                   onkeydown="if(event.key === 'Enter') checkPassword()">
+            <p id="passwordError" class="text-red-500 text-sm hidden mb-3">密碼錯誤，請重新輸入。</p>
+            <button onclick="checkPassword()" class="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-150">
+                確認
+            </button>
+        </div>
+    </div>
 
 
     <script>
         // ----------------------------------------------------
-        // IMPORTANT: Google Apps Script Web App 執行網址
+        // IMPORTANT: Cloudflare Worker 執行網址
         // ----------------------------------------------------
+        // *** 修正: 加上結尾斜線 / 確保請求路徑正確 ***
         const GAS_WEB_APP_URL = 'https://subjects-ntust.janice-064.workers.dev/'; 
         // ----------------------------------------------------
         
         let memberData = [];
+        let globalPassword = ''; // 用於儲存使用者輸入的密碼
         const MAX_RETRIES = 3;
         const INITIAL_DELAY_MS = 1000;
 
@@ -163,7 +180,8 @@
                 const latestPhysio = physioData.latestDate;
                 const latestSports = sportsData.latestDate;
                 const physioCount = physioData.count;
-                const sportsCount = sportsData.count;
+                // 修正: 確保運動次數使用 sportsData.count
+                const sportsCount = sportsData.count; 
                 // -------------------------
 
                 // --- 根據 Group 選擇更顯眼的標籤顏色 (已更新為淺色背景) ---
@@ -261,7 +279,17 @@
                 return;
             }
 
+            // 檢查密碼是否已設定
+            if (!globalPassword) {
+                showPasswordModal();
+                document.getElementById('loadingIndicator').textContent = '請輸入密碼以繼續...';
+                return;
+            }
+
             try {
+                // 更新載入指示器狀態
+                document.getElementById('loadingIndicator').textContent = '正在驗證密碼並載入資料...';
+                
                 let lastError = null;
                 let data = null;
 
@@ -269,13 +297,22 @@
                     try {
                         const response = await fetch(GAS_WEB_APP_URL, {
                             method: 'GET',
+                            // 移除 mode: 'cors' 避免在某些 iframe 環境中導致 fetch 失敗
+                            headers: {
+                                // 傳送密碼到 Worker 進行驗證
+                                'X-API-Password': globalPassword
+                            }
                         });
 
+                        if (response.status === 401) {
+                            // 密碼錯誤，拋出特定錯誤
+                            throw new Error('Unauthorized: Password incorrect.');
+                        }
+                        
                         if (!response.ok) {
                             throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
                         }
 
-                        // 由於 GAS 已經設為回傳 JSON，這裡使用 response.json()
                         data = await response.json(); 
                         
                         // 成功獲取資料，跳出重試循環
@@ -283,6 +320,10 @@
                         break; 
 
                     } catch (error) {
+                        if (error.message.includes('Unauthorized')) {
+                            throw error; // 密碼錯誤不再重試
+                        }
+                        
                         lastError = error;
                         if (attempt < MAX_RETRIES - 1) {
                             // 延遲並重試 (指數退避)
@@ -301,14 +342,11 @@
                 
                 // 檢查回傳資料是否為陣列
                 if (!Array.isArray(memberData)) {
-                    console.error("GAS 回傳的資料結構錯誤:", memberData);
-                    document.getElementById('loadingIndicator').classList.remove('hidden');
-                    const errorMessage = memberData && typeof memberData === 'object' && memberData.error 
-                                         ? `GAS 腳本回報錯誤: ${memberData.error}` 
-                                         : '資料格式不正確，請確認 Google Apps Script 部署狀態和資料回傳格式。';
-
-                    document.getElementById('loadingIndicator').innerHTML = `<p class="text-red-600">${errorMessage}</p>`;
-                    return; 
+                    // 如果 GAS 腳本回傳錯誤物件
+                    if (memberData && typeof memberData === 'object' && memberData.error) {
+                         throw new Error(`GAS 腳本回報錯誤: ${memberData.error}`);
+                    }
+                    throw new Error('資料格式不正確，請確認 Google Apps Script 部署狀態和資料回傳格式。');
                 }
 
                 renderCards(memberData);
@@ -316,37 +354,71 @@
             } catch (error) {
                 console.error("載入資料時發生錯誤:", error);
                 document.getElementById('loadingIndicator').classList.remove('hidden');
-                
-                let userMessage = `資料載入失敗，請檢查網路連線或 Web App 狀態。<br/>錯誤訊息: ${error.message}`;
+                document.getElementById('cardsContainer').innerHTML = ''; // 清空卡片
 
-                // 針對 Failed to fetch 錯誤，提供明確的故障排除指南
-                if (error.message.includes('Failed to fetch') || error.message.includes('network')) {
+                let userMessage;
+                
+                if (error.message.includes('Unauthorized: Password incorrect.')) {
+                    // 密碼錯誤，重新顯示密碼 Modal
+                    userMessage = '密碼錯誤，請重新輸入。';
+                    showPasswordModal(userMessage);
+                    document.getElementById('loadingIndicator').textContent = '載入失敗。';
+                    return;
+                } else if (error.message.includes('Failed to fetch') || error.message.includes('network')) {
+                    // 網路或 CORS 錯誤
+                    // *** 關鍵修正：加入 Worker 故障排除指引 ***
                     userMessage = `
-                        <p class="font-bold text-lg">連線失敗 (Failed to fetch) - 請檢查 GAS 部署！</p>
-                        <p class="text-sm mt-2 font-semibold">這不是網頁程式碼問題，請務必在 Google Apps Script 執行以下步驟：</p>
+                        <p class="font-bold text-lg">連線失敗 (Failed to fetch) - 請檢查 Worker/GAS 部署！</p>
+                        <p class="text-sm mt-2 font-semibold">這表示瀏覽器無法連線到您的 Cloudflare Worker。</p>
                         <ul class="list-disc list-inside text-left mx-auto max-w-md mt-3 space-y-2 text-sm">
-                            <li><span class="font-bold text-blue-800">1. 權限設定 (最重要):</span>
-                                <ul class="list-none pl-4"><li>確認部署的 Web App 存取權限 (Who has access) 是「<span class="text-green-600 font-bold">任何人 (Anyone)</span>」。</li></ul>
-                            </li>
-                            <li><span class="font-bold text-blue-800">2. 重新部署:</span>
-                                <ul class="list-none pl-4"><li>對 GAS 腳本的任何變更（包含權限），請務必點擊部署 > 管理部署作業 > 編輯 > <span class="text-red-600 font-bold">部署新版本</span>。</li></ul>
-                            </li>
-                            <li><span class="font-bold text-blue-800">3. 網址確認:</span>
-                                <ul class="list-none pl-4"><li>確認 Web App 的執行網址與網頁程式碼中的 \`GAS_WEB_APP_URL\` 完全一致。</li></ul>
-                            </li>
+                            <li><span class="font-bold text-blue-800">1. Worker 網址:</span> 請確認 \`GAS_WEB_APP_URL\` (L117) 是您正確的 Cloudflare Worker 網址。</li>
+                            <li><span class="font-bold text-blue-800">2. Worker 狀態:</span> 請確認您的 Cloudflare Worker 是否已成功部署且正在運行。</li>
+                            <li><span class="font-bold text-blue-800">3. 網路標籤:</span> 請打開開發人員工具 (F12) 的「網路 (Network)」標籤，查看請求狀態是否為 404/500。</li>
                         </ul>
                         <p class="text-xs mt-4 text-gray-600">瀏覽器錯誤: ${error.message}</p>
                     `;
+                } else {
+                    // 其他錯誤
+                    userMessage = `載入資料時發生非預期錯誤: ${error.message}`;
                 }
 
-                document.getElementById('loadingIndicator').innerHTML = `<div class="text-red-600 p-4 bg-red-100 rounded-lg">${userMessage}</div>`;
+                document.getElementById('loadingIndicator').innerHTML = `<div class="text-red-600 p-4 bg-red-100 rounded-lg max-w-lg mx-auto">${userMessage}</div>`;
+            }
+        }
+        
+        // --- 密碼 Modal 邏輯 ---
 
+        function showPasswordModal(errorMessage = '') {
+            const modal = document.getElementById('passwordModal');
+            const errorElement = document.getElementById('passwordError');
+            
+            errorElement.textContent = errorMessage;
+            errorElement.classList.toggle('hidden', !errorMessage);
+            
+            modal.classList.remove('hidden');
+            document.getElementById('passwordInput').focus();
+        }
+
+        function hidePasswordModal() {
+            document.getElementById('passwordModal').classList.add('hidden');
+        }
+
+        window.checkPassword = function() {
+            const passwordInput = document.getElementById('passwordInput');
+            const password = passwordInput.value.trim();
+            
+            if (password) {
+                globalPassword = password;
+                hidePasswordModal();
+                // 隱藏密碼 Modal 後，重新載入資料
+                fetchDataAndRender();
+            } else {
+                showPasswordModal('請輸入密碼。');
             }
         }
 
 
-        // --- Modal 邏輯 ---
-
+        // --- 資訊 Modal 邏輯 (省略，與上個版本一致) ---
         const modal = document.getElementById('modal');
         const modalName = document.getElementById('modalName');
         const modalPhysioDates = document.getElementById('modalPhysioDates');
@@ -354,22 +426,17 @@
         const modalNoDates = document.getElementById('modalNoDates');
 
         // 打開 Modal
-        function openModal(memberId) {
-            // 使用 find 尋找匹配的成員。由於 id 可能被覆蓋為 name，這裡統一使用字串比較
+        window.openModal = function(memberId) {
             const member = memberData.find(m => String(m.id || m.name) === String(memberId));
             if (!member) return;
             
-            // 重新處理日期數據以供 Modal 渲染
             const physioData = processDates(member.physioDates);
             const sportsData = processDates(member.sportsTherapyDates);
 
-
             modalName.textContent = member.name + " 的治療紀錄";
             
-            // 渲染日期標籤
             const renderDateTags = (formattedDates, colorClass) => {
                 if (formattedDates.length === 0) return '';
-                // 這裡 formattedDates 已經是 YYYY-MM-DD 格式的陣列
                 return formattedDates
                     .map(date => `<span class="px-3 py-1 rounded-full font-medium ${colorClass} shadow-md">${date}</span>`)
                     .join('');
@@ -381,27 +448,28 @@
             modalPhysioDates.innerHTML = physioTags || '<span class="text-gray-500 italic">無紀錄</span>';
             modalSportsTherapyDates.innerHTML = sportsTags || '<span class="text-gray-500 italic">無紀錄</span>';
 
-            // 檢查是否有任何紀錄
             const hasAnyDates = physioTags !== '' || sportsTags !== '';
             modalNoDates.classList.toggle('hidden', hasAnyDates);
 
-            // 顯示 Modal
             modal.classList.remove('opacity-0', 'pointer-events-none');
             document.getElementById('modalContent').classList.remove('scale-95');
         }
 
         // 關閉 Modal
-        function closeModal() {
+        window.closeModal = function() {
             modal.classList.add('opacity-0', 'pointer-events-none');
             document.getElementById('modalContent').classList.add('scale-95');
         }
 
         // 點擊 Modal 外部關閉
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeModal();
-            }
-        });
+        if (modal) { // Check if modal element exists before adding listener
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+        }
+
 
         // 網頁載入完成後執行
         window.onload = () => {

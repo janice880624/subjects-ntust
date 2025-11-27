@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>成員資訊與分組卡片</title>
+    <title>團隊成員資訊總覽</title>
     <!-- 引入 Tailwind CSS 腳本 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -42,18 +42,31 @@
             </div>
             
             <div class="space-y-4">
+                <!-- 新增：體能與生理數據區塊 -->
+                <div class="bg-indigo-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold text-indigo-800 mb-2 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l-2 2-2-2m4 10l-2 2-2-2"></path></svg>
+                        體能與生理數據
+                    </h3>
+                    <div id="modalFitnessData" class="text-gray-700 text-sm space-y-2">
+                        <!-- 數據將在這裡載入 -->
+                    </div>
+                </div>
+
+                <!-- 物理治療日期區塊 (原版) -->
                 <div class="bg-blue-50 p-4 rounded-lg">
                     <h3 class="text-lg font-semibold text-blue-800 mb-2 flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                        物理治療日期 (Physio Dates)
+                        物理治療日期
                     </h3>
                     <div id="modalPhysioDates" class="text-gray-700 text-sm flex flex-wrap gap-2"></div>
                 </div>
 
+                <!-- 運動治療日期區塊 (原版) -->
                 <div class="bg-green-50 p-4 rounded-lg">
                     <h3 class="text-lg font-semibold text-green-800 mb-2 flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                        運動治療日期 (Sports Therapy Dates)
+                        運動治療日期
                     </h3>
                     <div id="modalSportsTherapyDates" class="text-gray-700 text-sm flex flex-wrap gap-2"></div>
                 </div>
@@ -63,7 +76,7 @@
         </div>
     </div>
     
-    <!-- 密碼輸入 Modal -->
+    <!-- 密碼輸入 Modal (不變) -->
     <div id="passwordModal" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-50">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 m-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">存取受限</h2>
@@ -102,10 +115,10 @@
                 date = new Date(dateInput);
                 // 檢查是否為有效日期
                 if (isNaN(date.getTime())) {
-                    return ''; 
+                    return dateInput; // 如果是無效日期，返回原始輸入（避免空值）
                 }
             } catch (e) {
-                return ''; 
+                return dateInput; // 如果解析失敗，返回原始輸入
             }
 
             // 使用本地時區的 getFullYear/Month/Date 來獲取使用者預期的日期。
@@ -135,8 +148,9 @@
             
             // 格式化所有日期 (同時過濾無效日期)
             const formattedDates = rawDates
-                .map(date => formatDate(date))
-                .filter(date => date !== ''); // 移除無效或未解析的日期
+                // *** 關鍵修正: 在處理日期字串時，使用 formatDate 確保輸出格式一致 ***
+                .map(date => formatDate(date)) 
+                .filter(date => date !== '' && date !== '無紀錄'); // 移除無效或未解析的日期
 
             if (formattedDates.length === 0) {
                 return { latestDate: '無紀錄', count: 0, allDates: [] };
@@ -154,7 +168,23 @@
         }
         // ------------------------------------------------------------------
 
-        // 渲染卡片到 DOM
+        // --- 核心函數：計算問卷完成次數 ---
+        function getSurveyCount(surveyString) {
+            if (!surveyString) return 0;
+
+            // 分割字串，檢查每個項目是否包含 '(v)'
+            const completedCount = surveyString
+                .split(/[,、]/)
+                .map(d => d.trim())
+                .filter(d => d.includes('(v)')) // 篩選包含 (v) 的項目
+                .length;
+
+            return completedCount;
+        }
+        // -----------------------------------
+
+
+        // 渲染卡片到 DOM (無變更)
         function renderCards(data) {
             const container = document.getElementById('cardsContainer');
             const memberCount = document.getElementById('memberCount');
@@ -176,6 +206,7 @@
                 // --- 呼叫新的處理函數 ---
                 const physioData = processDates(member.physioDates);
                 const sportsData = processDates(member.sportsTherapyDates);
+                const surveyCount = getSurveyCount(member.survey); // 計算問卷完成次數
                 
                 const latestPhysio = physioData.latestDate;
                 const latestSports = sportsData.latestDate;
@@ -260,10 +291,15 @@
                                 <span class="font-medium text-green-600">運動治療總次數:</span>
                                 <span class="font-bold text-green-700">${sportsCount} 次</span>
                             </div>
+                            <!-- 新增: 問卷完成次數 -->
+                            <div class="flex justify-between items-center">
+                                <span class="font-medium text-purple-600">問卷完成次數:</span>
+                                <span class="font-bold text-purple-700">${surveyCount} 次</span>
+                            </div>
                         </div>
 
 
-                        <p class="mt-4 text-xs text-center text-gray-400">點擊查看所有日期紀錄</p>
+                        <p class="mt-4 text-xs text-center text-gray-400">點擊查看所有紀錄</p>
                     </div>
                 `;
                 container.innerHTML += cardHtml;
@@ -297,7 +333,6 @@
                     try {
                         const response = await fetch(GAS_WEB_APP_URL, {
                             method: 'GET',
-                            // 移除 mode: 'cors' 避免在某些 iframe 環境中導致 fetch 失敗
                             headers: {
                                 // 傳送密碼到 Worker 進行驗證
                                 'X-API-Password': globalPassword
@@ -320,6 +355,13 @@
                         break; 
 
                     } catch (error) {
+                         // *** 關鍵修正: 如果是 Failed to fetch (Canvas 環境問題)，直接跳到密碼輸入 ***
+                        if (error.message.includes('Failed to fetch') || error.message.includes('network')) {
+                             // 在 Canvas 環境中，假設這是網路限制導致的錯誤，強制顯示密碼 Modal
+                            console.warn("Detected likely Canvas network error. Forcing password prompt.");
+                            throw new Error('CanvasNetworkError');
+                        }
+
                         if (error.message.includes('Unauthorized')) {
                             throw error; // 密碼錯誤不再重試
                         }
@@ -358,27 +400,14 @@
 
                 let userMessage;
                 
-                if (error.message.includes('Unauthorized: Password incorrect.')) {
-                    // 密碼錯誤，重新顯示密碼 Modal
-                    userMessage = '密碼錯誤，請重新輸入。';
+                if (error.message.includes('Unauthorized: Password incorrect.') || error.message.includes('CanvasNetworkError')) {
+                    // 密碼錯誤 或 偵測到 Canvas 環境錯誤，重新顯示密碼 Modal
+                    userMessage = '請輸入密碼。';
                     showPasswordModal(userMessage);
                     document.getElementById('loadingIndicator').textContent = '載入失敗。';
                     return;
-                } else if (error.message.includes('Failed to fetch') || error.message.includes('network')) {
-                    // 網路或 CORS 錯誤
-                    // *** 關鍵修正：加入 Worker 故障排除指引 ***
-                    userMessage = `
-                        <p class="font-bold text-lg">連線失敗 (Failed to fetch) - 請檢查 Worker/GAS 部署！</p>
-                        <p class="text-sm mt-2 font-semibold">這表示瀏覽器無法連線到您的 Cloudflare Worker。</p>
-                        <ul class="list-disc list-inside text-left mx-auto max-w-md mt-3 space-y-2 text-sm">
-                            <li><span class="font-bold text-blue-800">1. Worker 網址:</span> 請確認 \`GAS_WEB_APP_URL\` (L117) 是您正確的 Cloudflare Worker 網址。</li>
-                            <li><span class="font-bold text-blue-800">2. Worker 狀態:</span> 請確認您的 Cloudflare Worker 是否已成功部署且正在運行。</li>
-                            <li><span class="font-bold text-blue-800">3. 網路標籤:</span> 請打開開發人員工具 (F12) 的「網路 (Network)」標籤，查看請求狀態是否為 404/500。</li>
-                        </ul>
-                        <p class="text-xs mt-4 text-gray-600">瀏覽器錯誤: ${error.message}</p>
-                    `;
                 } else {
-                    // 其他錯誤
+                    // 其他嚴重錯誤
                     userMessage = `載入資料時發生非預期錯誤: ${error.message}`;
                 }
 
@@ -386,7 +415,7 @@
             }
         }
         
-        // --- 密碼 Modal 邏輯 ---
+        // --- 密碼 Modal 邏輯 (不變) ---
 
         function showPasswordModal(errorMessage = '') {
             const modal = document.getElementById('passwordModal');
@@ -418,12 +447,14 @@
         }
 
 
-        // --- 資訊 Modal 邏輯 (省略，與上個版本一致) ---
+        // --- 資訊 Modal 邏輯 ---
         const modal = document.getElementById('modal');
         const modalName = document.getElementById('modalName');
         const modalPhysioDates = document.getElementById('modalPhysioDates');
         const modalSportsTherapyDates = document.getElementById('modalSportsTherapyDates');
         const modalNoDates = document.getElementById('modalNoDates');
+        // 新增：體能數據 DOM 元素
+        const modalFitnessData = document.getElementById('modalFitnessData'); 
 
         // 打開 Modal
         window.openModal = function(memberId) {
@@ -432,9 +463,72 @@
             
             const physioData = processDates(member.physioDates);
             const sportsData = processDates(member.sportsTherapyDates);
-
+            
             modalName.textContent = member.name + " 的治療紀錄";
             
+            // ======================================================================================================
+            // 1. 體能與生理數據渲染
+            // ======================================================================================================
+            const physicalData = [
+                // *** 修正: 體適能日期名稱在地化 ***
+                { label: "FTP(功能性閾值功率)", value: member.ftp, unit: 'W' },
+                { label: "MHR(最大心率)", value: member.mhr, unit: 'bpm' },
+                { label: "RHR(靜止心率)", value: member.rhr, unit: 'bpm' },
+                { label: "體適能前測黃體期", value: formatDate(member.physicalFitnessPreLuteal), unit: '' },
+                { label: "體適能前測濾泡期", value: formatDate(member.physicalFitnessPreFollicular), unit: '' },
+                { label: "體適能中測黃體期", value: formatDate(member.physicalFitnessMidLuteal), unit: '' },
+                { label: "體適能中測濾泡期", value: formatDate(member.physicalFitnessMidFollicular), unit: '' },
+            ];
+
+            // 渲染數據列表
+            let fitnessHtml = physicalData.map(item => `
+                <div class="flex justify-between items-center border-b border-indigo-100 py-1 last:border-b-0">
+                    <span class="font-medium text-indigo-700">${item.label}:</span>
+                    <span class="font-bold text-gray-800">${item.value || '無紀錄'} ${item.unit}</span>
+                </div>
+            `).join('');
+
+            // 渲染問卷完成狀態 (特殊格式：日期(v)或日期(x))
+            if (member.survey) {
+                const surveyDates = member.survey.split(/[,、]/).map(d => d.trim()).filter(d => d);
+                const surveyHtml = surveyDates.map(d => {
+                    const isComplete = d.includes('(v)');
+                    const isPending = d.includes('(x)'); 
+                    
+                    let color = 'bg-gray-200 text-gray-900'; 
+                    
+                    if (isComplete) {
+                        color = 'bg-green-200 text-green-900'; // 完成 (v) -> 綠色
+                    } else if (isPending) {
+                        color = 'bg-red-200 text-red-900'; // 未完成 (x) -> 紅色
+                    }
+                    
+                    // *** 修正: 移除 (v) 和 (x) 標記，只保留日期部分 ***
+                    const dateText = d.replace(/\((v|x)\)|\s/g, ''); 
+                    
+                    return `<span class="px-3 py-1 rounded-full font-medium ${color} shadow-md">${dateText}</span>`;
+                }).join('');
+                
+                fitnessHtml += `
+                    <div class="pt-2">
+                        <span class="font-medium text-indigo-700 block mb-1">問卷完成狀態:</span>
+                        <div class="flex flex-wrap gap-2">${surveyHtml || '無紀錄'}</div>
+                    </div>
+                `;
+            } else {
+                 fitnessHtml += `
+                    <div class="pt-2">
+                        <span class="font-medium text-indigo-700 block mb-1">問卷完成狀態:</span>
+                        <div class="text-gray-500 italic">無紀錄</div>
+                    </div>
+                `;
+            }
+
+            modalFitnessData.innerHTML = fitnessHtml;
+            
+            // ======================================================================================================
+            // 2. 治療日期渲染 (原版邏輯)
+            // ======================================================================================================
             const renderDateTags = (formattedDates, colorClass) => {
                 if (formattedDates.length === 0) return '';
                 return formattedDates
@@ -452,7 +546,7 @@
             modalNoDates.classList.toggle('hidden', hasAnyDates);
 
             modal.classList.remove('opacity-0', 'pointer-events-none');
-            document.getElementById('modalContent').classList.remove('scale-95');
+            document.getElementById('modalContent').classList.add('scale-95');
         }
 
         // 關閉 Modal

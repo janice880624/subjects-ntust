@@ -45,8 +45,7 @@
                 <!-- 新增：體能與生理數據區塊 -->
                 <div class="bg-indigo-50 p-4 rounded-lg">
                     <h3 class="text-lg font-semibold text-indigo-800 mb-2 flex items-center">
-                        <!-- 圖標替換為心電圖 (Heartbeat) -->
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364l-1.061 1.061a1.5 1.5 0 01-2.121 0l-1.061-1.061a4.5 4.5 0 00-6.364 0zM12 11.5L9.5 9l-2-2"/></svg>
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l-2 2-2-2m4 10l-2 2-2-2"></path></svg>
                         體能與生理數據
                     </h3>
                     <div id="modalFitnessData" class="text-gray-700 text-sm space-y-2">
@@ -58,16 +57,16 @@
                 <div class="bg-blue-50 p-4 rounded-lg">
                     <h3 class="text-lg font-semibold text-blue-800 mb-2 flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                        物理治療日期 (Physio Dates)
+                        物理治療日期
                     </h3>
                     <div id="modalPhysioDates" class="text-gray-700 text-sm flex flex-wrap gap-2"></div>
                 </div>
 
-                <!-- 運動治療日期區塊 (修正為黃色) -->
+                <!-- 運動治療日期區塊 (原版) -->
                 <div class="bg-yellow-50 p-4 rounded-lg">
                     <h3 class="text-lg font-semibold text-yellow-800 mb-2 flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                        運動治療日期 (Sports Therapy Dates)
+                        運動治療日期
                     </h3>
                     <div id="modalSportsTherapyDates" class="text-gray-700 text-sm flex flex-wrap gap-2"></div>
                 </div>
@@ -472,9 +471,9 @@
             // ======================================================================================================
             const physicalData = [
                 // *** 修正: 體適能日期名稱在地化 ***
-                { label: "FTP (功能性閾值功率)", value: member.ftp, unit: 'W' },
-                { label: "最大心率 (MHR)", value: member.mhr, unit: 'bpm' },
-                { label: "靜止心率 (RHR)", value: member.rhr, unit: 'bpm' },
+                { label: "FTP(功能性閾值功率)", value: member.ftp, unit: 'W' },
+                { label: "MHR(最大心率)", value: member.mhr, unit: 'bpm' },
+                { label: "RHR(靜止心率)", value: member.rhr, unit: 'bpm' },
                 { label: "體適能前測黃體期", value: formatDate(member.physicalFitnessPreLuteal), unit: '' },
                 { label: "體適能前測濾泡期", value: formatDate(member.physicalFitnessPreFollicular), unit: '' },
                 { label: "體適能中測黃體期", value: formatDate(member.physicalFitnessMidLuteal), unit: '' },

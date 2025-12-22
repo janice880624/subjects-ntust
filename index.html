@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>團隊成員資訊總覽</title>
+    <title>成員資訊與分組卡片</title>
     <!-- 引入 Tailwind CSS 腳本 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -12,13 +12,38 @@
             font-family: 'Inter', sans-serif;
             background-color: #f7f9fb; /* 淺灰背景 */
         }
+        /* 自定義捲軸樣式（針對總覽表格） */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
     </style>
 </head>
 <body class="p-4 sm:p-8">
 
     <header class="mb-8 text-center">
         <h1 class="text-4xl font-extrabold text-gray-900 mb-2">團隊成員資訊總覽</h1>
-        <p class="text-xl text-gray-600">共 <span id="memberCount" class="font-semibold text-blue-600">0</span> 位成員 | 點擊卡片查看詳細資訊</p>
+        <p class="text-xl text-gray-600 mb-6">共 <span id="memberCount" class="font-semibold text-blue-600">0</span> 位成員</p>
+        
+        <!-- 切換按鈕 -->
+        <div class="inline-flex rounded-md shadow-sm" role="group">
+            <button onclick="switchView('cards')" id="btnCards" class="px-6 py-2 text-sm font-medium text-blue-700 bg-white border border-gray-200 rounded-l-lg hover:bg-gray-100 hover:text-blue-800 focus:z-10 focus:ring-2 focus:ring-blue-500 focus:text-blue-700 transition duration-150">
+                成員卡片
+            </button>
+            <button onclick="switchView('summary')" id="btnSummary" class="px-6 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-r-lg hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-500 focus:text-blue-700 transition duration-150">
+                體適能進度總覽
+            </button>
+        </div>
     </header>
 
     <!-- 載入指示器 -->
@@ -26,10 +51,31 @@
         正在等待密碼...
     </div>
 
-    <!-- 成員卡片容器 -->
-    <div id="cardsContainer" class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <!-- 卡片將由 JavaScript 動態生成於此 -->
-    </div>
+    <!-- 檢視內容容器 -->
+    <main id="mainContent" class="hidden">
+        <!-- 卡片檢視 -->
+        <div id="cardsView" class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <!-- 卡片將由 JavaScript 動態生成於此 -->
+        </div>
+
+        <!-- 總覽表格檢視 -->
+        <div id="summaryView" class="hidden overflow-x-auto custom-scrollbar bg-white rounded-xl shadow-lg border border-gray-200">
+            <table class="w-full text-sm text-left text-gray-500">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+                    <tr>
+                        <th scope="col" class="px-6 py-4 font-bold">成員姓名</th>
+                        <th scope="col" class="px-6 py-4 font-bold text-center">體適能前測黃體期</th>
+                        <th scope="col" class="px-6 py-4 font-bold text-center">體適能前測濾泡期</th>
+                        <th scope="col" class="px-6 py-4 font-bold text-center">體適能後測黃體期</th>
+                        <th scope="col" class="px-6 py-4 font-bold text-center">體適能後測濾泡期</th>
+                    </tr>
+                </thead>
+                <tbody id="summaryTableBody">
+                    <!-- 表格行將由 JavaScript 動態生成於此 -->
+                </tbody>
+            </table>
+        </div>
+    </main>
 
     <!-- 彈出式視窗 (Modal) 用於顯示詳細日期 -->
     <div id="modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
@@ -42,31 +88,26 @@
             </div>
             
             <div class="space-y-4">
-                <!-- 新增：體能與生理數據區塊 -->
                 <div class="bg-indigo-50 p-4 rounded-lg">
                     <h3 class="text-lg font-semibold text-indigo-800 mb-2 flex items-center">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l-2 2-2-2m4 10l-2 2-2-2"></path></svg>
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364l-1.061 1.061a1.5 1.5 0 01-2.121 0l-1.061-1.061a4.5 4.5 0 00-6.364 0zM12 11.5L9.5 9l-2-2"/></svg>
                         體能與生理數據
                     </h3>
-                    <div id="modalFitnessData" class="text-gray-700 text-sm space-y-2">
-                        <!-- 數據將在這裡載入 -->
-                    </div>
+                    <div id="modalFitnessData" class="text-gray-700 text-sm space-y-2"></div>
                 </div>
 
-                <!-- 物理治療日期區塊 (原版) -->
                 <div class="bg-blue-50 p-4 rounded-lg">
                     <h3 class="text-lg font-semibold text-blue-800 mb-2 flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                        物理治療日期
+                        物理治療日期 (Physio Dates)
                     </h3>
                     <div id="modalPhysioDates" class="text-gray-700 text-sm flex flex-wrap gap-2"></div>
                 </div>
 
-                <!-- 運動治療日期區塊 (原版) -->
                 <div class="bg-yellow-50 p-4 rounded-lg">
                     <h3 class="text-lg font-semibold text-yellow-800 mb-2 flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                        運動治療日期
+                        運動治療日期 (Sports Therapy Dates)
                     </h3>
                     <div id="modalSportsTherapyDates" class="text-gray-700 text-sm flex flex-wrap gap-2"></div>
                 </div>
@@ -76,7 +117,7 @@
         </div>
     </div>
     
-    <!-- 密碼輸入 Modal (不變) -->
+    <!-- 密碼輸入 Modal -->
     <div id="passwordModal" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-50">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 m-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">存取受限</h2>
@@ -96,103 +137,127 @@
         // ----------------------------------------------------
         // IMPORTANT: Cloudflare Worker 執行網址
         // ----------------------------------------------------
-        // *** 修正: 加上結尾斜線 / 確保請求路徑正確 ***
         const GAS_WEB_APP_URL = 'https://subjects-ntust.janice-064.workers.dev/'; 
         // ----------------------------------------------------
         
         let memberData = [];
-        let globalPassword = ''; // 用於儲存使用者輸入的密碼
+        let globalPassword = ''; 
         const MAX_RETRIES = 3;
         const INITIAL_DELAY_MS = 1000;
 
         // 格式化日期：將任何日期字串或 Date 物件轉換為 YYYY-MM-DD 格式
         function formatDate(dateInput) {
-            if (!dateInput) return '';
+            if (!dateInput || dateInput === '無紀錄') return '無紀錄';
             let date;
-
-            // 嘗試解析為 Date 物件
             try {
                 date = new Date(dateInput);
-                // 檢查是否為有效日期
-                if (isNaN(date.getTime())) {
-                    return dateInput; // 如果是無效日期，返回原始輸入（避免空值）
-                }
+                if (isNaN(date.getTime())) return dateInput; 
             } catch (e) {
-                return dateInput; // 如果解析失敗，返回原始輸入
+                return dateInput;
             }
-
-            // 使用本地時區的 getFullYear/Month/Date 來獲取使用者預期的日期。
             const year = date.getFullYear();
-            // getMonth() 回傳 0-11
             const month = (date.getMonth() + 1).toString().padStart(2, '0');
             const day = date.getDate().toString().padStart(2, '0');
-
             return `${year}-${month}-${day}`;
         }
         
-        // --- 核心函數：處理日期字串，計算次數，並返回最新日期 ---
-        function processDates(dateString) {
-            if (!dateString) {
-                return { latestDate: '無紀錄', count: 0, allDates: [] };
+        // 切換檢視
+        window.switchView = function(view) {
+            const cardsView = document.getElementById('cardsView');
+            const summaryView = document.getElementById('summaryView');
+            const btnCards = document.getElementById('btnCards');
+            const btnSummary = document.getElementById('btnSummary');
+
+            if (view === 'cards') {
+                cardsView.classList.remove('hidden');
+                summaryView.classList.add('hidden');
+                btnCards.classList.add('bg-blue-50', 'text-blue-700', 'border-blue-300');
+                btnSummary.classList.remove('bg-blue-50', 'text-blue-700', 'border-blue-300');
+            } else {
+                cardsView.classList.add('hidden');
+                summaryView.classList.remove('hidden');
+                btnCards.classList.remove('bg-blue-50', 'text-blue-700', 'border-blue-300');
+                btnSummary.classList.add('bg-blue-50', 'text-blue-700', 'border-blue-300');
             }
-
-            // 修正：同時處理英文逗號(,)和中文頓號(、)作為分隔符，以應對 Google Sheet 的資料格式
-            const rawDates = dateString
-                .split(/[,、]/) 
-                .map(d => d.trim())
-                .filter(d => d);
-            
-            if (rawDates.length === 0) {
-                return { latestDate: '無紀錄', count: 0, allDates: [] };
-            }
-            
-            // 格式化所有日期 (同時過濾無效日期)
-            const formattedDates = rawDates
-                // *** 關鍵修正: 在處理日期字串時，使用 formatDate 確保輸出格式一致 ***
-                .map(date => formatDate(date)) 
-                .filter(date => date !== '' && date !== '無紀錄'); // 移除無效或未解析的日期
-
-            if (formattedDates.length === 0) {
-                return { latestDate: '無紀錄', count: 0, allDates: [] };
-            }
-
-            // 總次數
-            const count = formattedDates.length;
-            
-            // 排序並返回最新日期 (最新的日期會排在最後面)
-            // YYYY-MM-DD 格式的字串排序是正確的日期排序
-            const sortedDates = formattedDates.sort();
-            const latestDate = sortedDates[sortedDates.length - 1];
-
-            return { latestDate, count, allDates: formattedDates };
         }
-        // ------------------------------------------------------------------
 
-        // --- 核心函數：計算問卷完成次數 ---
+        // 核心函數：處理日期字串
+        function processDates(dateString) {
+            if (!dateString) return { latestDate: '無紀錄', count: 0, allDates: [] };
+            const rawDates = dateString.split(/[,、]/).map(d => d.trim()).filter(d => d);
+            if (rawDates.length === 0) return { latestDate: '無紀錄', count: 0, allDates: [] };
+            const formattedDates = rawDates.map(date => formatDate(date)).filter(date => date !== '' && date !== '無紀錄');
+            if (formattedDates.length === 0) return { latestDate: '無紀錄', count: 0, allDates: [] };
+            const sortedDates = formattedDates.sort();
+            return { latestDate: sortedDates[sortedDates.length - 1], count: formattedDates.length, allDates: formattedDates };
+        }
+
+        // 核心函數：計算問卷完成次數
         function getSurveyCount(surveyString) {
             if (!surveyString) return 0;
-
-            // 分割字串，檢查每個項目是否包含 '(v)'
-            const completedCount = surveyString
-                .split(/[,、]/)
-                .map(d => d.trim())
-                .filter(d => d.includes('(v)')) // 篩選包含 (v) 的項目
-                .length;
-
-            return completedCount;
+            return surveyString.split(/[,、]/).map(d => d.trim()).filter(d => d.includes('(v)')).length;
         }
-        // -----------------------------------
 
+        // 渲染總覽表格
+        function renderSummaryTable(data) {
+            const tableBody = document.getElementById('summaryTableBody');
+            tableBody.innerHTML = '';
 
-        // 渲染卡片到 DOM (無變更)
+            data.forEach(member => {
+                const preLuteal = formatDate(member.physicalFitnessPreLuteal);
+                const preFollicular = formatDate(member.physicalFitnessPreFollicular);
+                const midLuteal = formatDate(member.physicalFitnessMidLuteal);
+                const midFollicular = formatDate(member.physicalFitnessMidFollicular);
+
+                const getStatusClass = (val) => val === '無紀錄' ? 'text-gray-300' : 'text-green-600 font-semibold';
+                const getIcon = (val) => val === '無紀錄' ? '○' : '●';
+
+                const rowHtml = `
+                    <tr class="border-b hover:bg-gray-50 transition duration-150">
+                        <th scope="row" class="px-6 py-4 font-bold text-gray-900 whitespace-nowrap">
+                            ${member.name}
+                        </th>
+                        <td class="px-6 py-4 text-center ${getStatusClass(preLuteal)}">
+                            <div class="flex flex-col items-center">
+                                <span>${getIcon(preLuteal)}</span>
+                                <span class="text-xs mt-1">${preLuteal}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-center ${getStatusClass(preFollicular)}">
+                            <div class="flex flex-col items-center">
+                                <span>${getIcon(preFollicular)}</span>
+                                <span class="text-xs mt-1">${preFollicular}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-center ${getStatusClass(midLuteal)}">
+                            <div class="flex flex-col items-center">
+                                <span>${getIcon(midLuteal)}</span>
+                                <span class="text-xs mt-1">${midLuteal}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-center ${getStatusClass(midFollicular)}">
+                            <div class="flex flex-col items-center">
+                                <span>${getIcon(midFollicular)}</span>
+                                <span class="text-xs mt-1">${midFollicular}</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                tableBody.innerHTML += rowHtml;
+            });
+        }
+
+        // 渲染卡片到 DOM
         function renderCards(data) {
-            const container = document.getElementById('cardsContainer');
+            const container = document.getElementById('cardsView');
             const memberCount = document.getElementById('memberCount');
             const loadingIndicator = document.getElementById('loadingIndicator');
+            const mainContent = document.getElementById('mainContent');
 
-            loadingIndicator.classList.add('hidden'); // 隱藏載入指示器
-            container.innerHTML = ''; // 清空現有內容
-            memberCount.textContent = data.length; // 更新成員總數
+            loadingIndicator.classList.add('hidden');
+            mainContent.classList.remove('hidden');
+            container.innerHTML = '';
+            memberCount.textContent = data.length;
 
             if (data.length === 0) {
                  container.innerHTML = '<p class="text-center text-xl text-red-500 mt-10 w-full">表格中無資料。</p>';
@@ -200,376 +265,173 @@
             }
 
             data.forEach(member => {
-                // 確保成員有一個 ID，用於 Modal 查找
                 const memberId = member.id || member.name;
-
-                // --- 呼叫新的處理函數 ---
                 const physioData = processDates(member.physioDates);
                 const sportsData = processDates(member.sportsTherapyDates);
-                const surveyCount = getSurveyCount(member.survey); // 計算問卷完成次數
+                const surveyCount = getSurveyCount(member.survey);
                 
                 const latestPhysio = physioData.latestDate;
                 const latestSports = sportsData.latestDate;
-                const physioCount = physioData.count;
-                // 修正: 確保運動次數使用 sportsData.count
-                const sportsCount = sportsData.count; 
-                // -------------------------
+                
+                let groupColor = 'bg-indigo-100 text-indigo-800';
+                if (member.group.includes('運動')) groupColor = 'bg-blue-50 text-blue-800';
+                else if (member.group.includes('營養')) groupColor = 'bg-red-100 text-red-900';
 
-                // --- 根據 Group 選擇更顯眼的標籤顏色 (已更新為淺色背景) ---
-                let groupColor = 'bg-indigo-100 text-indigo-800'; // 預設顏色 (淺靛藍)
-                if (member.group.includes('運動')) {
-                    groupColor = 'bg-blue-50 text-blue-800'; // 淺藍
-                } else if (member.group.includes('營養')) {
-                    groupColor = 'bg-red-100 text-red-900'; // 淺紅
-                }
-                // --- 結束顏色更新 ---
-
-                // SubGroup 標籤顏色 (維持原樣)
                 let subGroupColor = 'bg-purple-100 text-purple-800';
-                if (member.subGroup.includes('介入')) {
-                    subGroupColor = 'bg-yellow-50 text-yellow-800'; // 淺藍
-                } else if (member.subGroup.includes('控制')) {
-                    subGroupColor = 'bg-gray-100 text-gray-900'; // 淺紅
-                }
+                if (member.subGroup.includes('週期')) subGroupColor = 'bg-yellow-50 text-yellow-800';
+                else if (member.subGroup.includes('控制')) subGroupColor = 'bg-gray-100 text-gray-900';
 
-                
-                // 檢查是否有任何治療紀錄 (用來設定左側綠色邊框)
-                const hasTherapy = physioCount > 0 || sportsCount > 0;
+                const hasTherapy = physioData.count > 0 || sportsData.count > 0;
                 const therapyStyle = hasTherapy ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300';
-                
-                // 處理頭像錯誤
                 const avatarFallback = `this.onerror=null; this.src='https://placehold.co/64x64/CCCCCC/333333?text=${member.name[0] || '?'}'`;
 
                 const cardHtml = `
                     <div class="bg-white rounded-xl shadow-lg p-6 flex flex-col hover:shadow-xl transition duration-300 cursor-pointer ${therapyStyle}" 
                          onclick="openModal('${memberId}')">
-                        
-                        <!-- 頭像與基本資訊 -->
                         <div class="flex items-center mb-4 border-b pb-4">
-                            <img src="${member.avatarUrl}" 
-                                 onerror="${avatarFallback}"
-                                 alt="${member.name} 的頭像" 
-                                 class="w-16 h-16 rounded-full object-cover mr-4 ring-2 ring-offset-2 ring-blue-500" />
-                            
+                            <img src="${member.avatarUrl}" onerror="${avatarFallback}" class="w-16 h-16 rounded-full object-cover mr-4 ring-2 ring-offset-2 ring-blue-500" />
                             <div>
                                 <h2 class="text-xl font-bold text-gray-900">${member.name}</h2>
-                                <!-- Tags / 分組標籤 -->
                                 <div class="flex flex-wrap gap-2 mt-1">
-                                    <span class="px-3 py-1 text-xs font-semibold rounded-full ${groupColor}">
-                                        ${member.group}
-                                    </span>
-                                    <span class="px-3 py-1 text-xs font-semibold rounded-full ${subGroupColor}">
-                                        ${member.subGroup}
-                                    </span>
+                                    <span class="px-3 py-1 text-xs font-semibold rounded-full ${groupColor}">${member.group}</span>
+                                    <span class="px-3 py-1 text-xs font-semibold rounded-full ${subGroupColor}">${member.subGroup}</span>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- 治療日期摘要 -->
                         <div class="space-y-3">
                             <div class="flex justify-between items-center text-sm">
                                 <span class="font-medium text-gray-600">最近物理治療:</span>
-                                <span class="px-2 py-1 text-xs font-semibold rounded-lg ${latestPhysio === '無紀錄' ? 'bg-gray-100 text-gray-500' : 'bg-blue-500 text-white'}">
-                                    ${latestPhysio}
-                                </span>
+                                <span class="px-2 py-1 text-xs font-semibold rounded-lg ${latestPhysio === '無紀錄' ? 'bg-gray-100 text-gray-500' : 'bg-blue-500 text-white'}">${latestPhysio}</span>
                             </div>
                             <div class="flex justify-between items-center text-sm">
                                 <span class="font-medium text-gray-600">最近運動治療:</span>
-                                <span class="px-2 py-1 text-xs font-semibold rounded-lg ${latestSports === '無紀錄' ? 'bg-gray-100 text-gray-500' : 'bg-green-500 text-white'}">
-                                    ${latestSports}
-                                </span>
+                                <span class="px-2 py-1 text-xs font-semibold rounded-lg ${latestSports === '無紀錄' ? 'bg-gray-100 text-gray-500' : 'bg-green-500 text-white'}">${latestSports}</span>
                             </div>
                         </div>
-
-                        <!-- 總次數顯示 -->
                         <div class="border-t border-gray-100 pt-3 mt-4 space-y-2 text-sm">
-                            <div class="flex justify-between items-center">
-                                <span class="font-medium text-blue-600">物理治療總次數:</span>
-                                <span class="font-bold text-blue-700">${physioCount} 次</span>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <span class="font-medium text-green-600">運動治療總次數:</span>
-                                <span class="font-bold text-green-700">${sportsCount} 次</span>
-                            </div>
-                            <!-- 新增: 問卷完成次數 -->
-                            <div class="flex justify-between items-center">
-                                <span class="font-medium text-purple-600">問卷完成次數:</span>
-                                <span class="font-bold text-purple-700">${surveyCount} 次</span>
-                            </div>
+                            <div class="flex justify-between items-center"><span class="font-medium text-blue-600">物理治療總次數:</span><span class="font-bold text-blue-700">${physioData.count} 次</span></div>
+                            <div class="flex justify-between items-center"><span class="font-medium text-green-600">運動治療總次數:</span><span class="font-bold text-green-700">${sportsData.count} 次</span></div>
+                            <div class="flex justify-between items-center"><span class="font-medium text-purple-600">問卷完成次數:</span><span class="font-bold text-purple-700">${surveyCount} 次</span></div>
                         </div>
-
-
-                        <p class="mt-4 text-xs text-center text-gray-400">點擊查看所有日期紀錄</p>
+                        <p class="mt-4 text-xs text-center text-gray-400">點擊查看詳細生理數據</p>
                     </div>
                 `;
                 container.innerHTML += cardHtml;
             });
+            
+            renderSummaryTable(data);
+            switchView('cards'); // 預設顯示卡片
         }
         
-        // ----------------------------------------------------
-        // 從 Google Apps Script Web App 獲取資料 (帶有重試機制)
-        // ----------------------------------------------------
+        // 從 Web App 獲取資料
         async function fetchDataAndRender() {
-            if (GAS_WEB_APP_URL.includes('YOUR_GAS_EXEC_URL_HERE')) {
-                document.getElementById('loadingIndicator').textContent = '錯誤：請替換 GAS_WEB_APP_URL 為您的 Web App 網址。';
-                return;
-            }
-
-            // 檢查密碼是否已設定
-            if (!globalPassword) {
-                showPasswordModal();
-                document.getElementById('loadingIndicator').textContent = '請輸入密碼以繼續...';
-                return;
-            }
-
+            if (!globalPassword) { showPasswordModal(); return; }
             try {
-                // 更新載入指示器狀態
-                document.getElementById('loadingIndicator').textContent = '正在驗證密碼並載入資料...';
-                
+                document.getElementById('loadingIndicator').textContent = '正在載入最新數據...';
                 let lastError = null;
                 let data = null;
-
                 for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
                     try {
                         const response = await fetch(GAS_WEB_APP_URL, {
                             method: 'GET',
-                            headers: {
-                                // 傳送密碼到 Worker 進行驗證
-                                'X-API-Password': globalPassword
-                            }
+                            headers: { 'X-API-Password': globalPassword }
                         });
-
-                        if (response.status === 401) {
-                            // 密碼錯誤，拋出特定錯誤
-                            throw new Error('Unauthorized: Password incorrect.');
-                        }
-                        
-                        if (!response.ok) {
-                            throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
-                        }
-
+                        if (response.status === 401) throw new Error('Unauthorized: Password incorrect.');
+                        if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
                         data = await response.json(); 
-                        
-                        // 成功獲取資料，跳出重試循環
                         lastError = null; 
                         break; 
-
                     } catch (error) {
-                         // *** 關鍵修正: 如果是 Failed to fetch (Canvas 環境問題)，直接跳到密碼輸入 ***
-                        if (error.message.includes('Failed to fetch') || error.message.includes('network')) {
-                             // 在 Canvas 環境中，假設這是網路限制導致的錯誤，強制顯示密碼 Modal
-                            console.warn("Detected likely Canvas network error. Forcing password prompt.");
-                            throw new Error('CanvasNetworkError');
-                        }
-
-                        if (error.message.includes('Unauthorized')) {
-                            throw error; // 密碼錯誤不再重試
-                        }
-                        
+                        if (error.message.includes('Failed to fetch') || error.message.includes('network')) throw new Error('CanvasNetworkError');
+                        if (error.message.includes('Unauthorized')) throw error;
                         lastError = error;
-                        if (attempt < MAX_RETRIES - 1) {
-                            // 延遲並重試 (指數退避)
-                            const delay = INITIAL_DELAY_MS * Math.pow(2, attempt);
-                            console.warn(`Fetch 嘗試失敗 (第 ${attempt + 1}/${MAX_RETRIES} 次)。正在重試 (延遲 ${delay}ms)...`);
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                        }
+                        const delay = INITIAL_DELAY_MS * Math.pow(2, attempt);
+                        await new Promise(resolve => setTimeout(resolve, delay));
                     }
                 }
-                
-                if (lastError) {
-                    throw lastError; // 如果所有重試都失敗，拋出最後的錯誤
-                }
-
+                if (lastError) throw lastError;
                 memberData = data;
-                
-                // 檢查回傳資料是否為陣列
-                if (!Array.isArray(memberData)) {
-                    // 如果 GAS 腳本回傳錯誤物件
-                    if (memberData && typeof memberData === 'object' && memberData.error) {
-                         throw new Error(`GAS 腳本回報錯誤: ${memberData.error}`);
-                    }
-                    throw new Error('資料格式不正確，請確認 Google Apps Script 部署狀態和資料回傳格式。');
-                }
-
                 renderCards(memberData);
-
             } catch (error) {
-                console.error("載入資料時發生錯誤:", error);
+                console.error("載入錯誤:", error);
                 document.getElementById('loadingIndicator').classList.remove('hidden');
-                document.getElementById('cardsContainer').innerHTML = ''; // 清空卡片
-
-                let userMessage;
-                
-                if (error.message.includes('Unauthorized: Password incorrect.') || error.message.includes('CanvasNetworkError')) {
-                    // 密碼錯誤 或 偵測到 Canvas 環境錯誤，重新顯示密碼 Modal
-                    userMessage = '請輸入密碼。';
-                    showPasswordModal(userMessage);
-                    document.getElementById('loadingIndicator').textContent = '載入失敗。';
-                    return;
+                if (error.message.includes('Unauthorized') || error.message.includes('CanvasNetworkError')) {
+                    showPasswordModal('請輸入密碼以進行連線。');
+                    document.getElementById('loadingIndicator').textContent = '等待輸入密碼...';
                 } else {
-                    // 其他嚴重錯誤
-                    userMessage = `載入資料時發生非預期錯誤: ${error.message}`;
+                    document.getElementById('loadingIndicator').innerHTML = `<div class="text-red-600 p-4 bg-red-100 rounded-lg max-w-lg mx-auto">錯誤: ${error.message}</div>`;
                 }
-
-                document.getElementById('loadingIndicator').innerHTML = `<div class="text-red-600 p-4 bg-red-100 rounded-lg max-w-lg mx-auto">${userMessage}</div>`;
             }
         }
         
-        // --- 密碼 Modal 邏輯 (不變) ---
-
         function showPasswordModal(errorMessage = '') {
             const modal = document.getElementById('passwordModal');
             const errorElement = document.getElementById('passwordError');
-            
             errorElement.textContent = errorMessage;
             errorElement.classList.toggle('hidden', !errorMessage);
-            
             modal.classList.remove('hidden');
             document.getElementById('passwordInput').focus();
         }
 
-        function hidePasswordModal() {
-            document.getElementById('passwordModal').classList.add('hidden');
-        }
+        function hidePasswordModal() { document.getElementById('passwordModal').classList.add('hidden'); }
 
         window.checkPassword = function() {
             const passwordInput = document.getElementById('passwordInput');
             const password = passwordInput.value.trim();
-            
             if (password) {
                 globalPassword = password;
                 hidePasswordModal();
-                // 隱藏密碼 Modal 後，重新載入資料
                 fetchDataAndRender();
-            } else {
-                showPasswordModal('請輸入密碼。');
-            }
+            } else { showPasswordModal('請輸入密碼。'); }
         }
 
-
-        // --- 資訊 Modal 邏輯 ---
-        const modal = document.getElementById('modal');
-        const modalName = document.getElementById('modalName');
-        const modalPhysioDates = document.getElementById('modalPhysioDates');
-        const modalSportsTherapyDates = document.getElementById('modalSportsTherapyDates');
-        const modalNoDates = document.getElementById('modalNoDates');
-        // 新增：體能數據 DOM 元素
-        const modalFitnessData = document.getElementById('modalFitnessData'); 
-
-        // 打開 Modal
+        // 打開詳細資料 Modal
         window.openModal = function(memberId) {
             const member = memberData.find(m => String(m.id || m.name) === String(memberId));
             if (!member) return;
-            
             const physioData = processDates(member.physioDates);
             const sportsData = processDates(member.sportsTherapyDates);
+            document.getElementById('modalName').textContent = member.name + " 的詳細數據";
             
-            modalName.textContent = member.name + " 的治療紀錄";
-            
-            // ======================================================================================================
-            // 1. 體能與生理數據渲染
-            // ======================================================================================================
             const physicalData = [
-                // *** 修正: 體適能日期名稱在地化 ***
-                { label: "FTP(功能性閾值功率)", value: member.ftp, unit: 'W' },
-                { label: "MHR(最大心率)", value: member.mhr, unit: 'bpm' },
-                { label: "RHR(靜止心率)", value: member.rhr, unit: 'bpm' },
+                { label: "FTP (功能性閾值功率)", value: member.ftp, unit: 'W' },
+                { label: "最大心率 (MHR)", value: member.mhr, unit: 'bpm' },
+                { label: "靜止心率 (RHR)", value: member.rhr, unit: 'bpm' },
                 { label: "體適能前測黃體期", value: formatDate(member.physicalFitnessPreLuteal), unit: '' },
                 { label: "體適能前測濾泡期", value: formatDate(member.physicalFitnessPreFollicular), unit: '' },
-                { label: "體適能中測黃體期", value: formatDate(member.physicalFitnessMidLuteal), unit: '' },
-                { label: "體適能中測濾泡期", value: formatDate(member.physicalFitnessMidFollicular), unit: '' },
+                { label: "體適能後測黃體期", value: formatDate(member.physicalFitnessMidLuteal), unit: '' },
+                { label: "體適能後測濾泡期", value: formatDate(member.physicalFitnessMidFollicular), unit: '' },
             ];
 
-            // 渲染數據列表
-            let fitnessHtml = physicalData.map(item => `
+            document.getElementById('modalFitnessData').innerHTML = physicalData.map(item => `
                 <div class="flex justify-between items-center border-b border-indigo-100 py-1 last:border-b-0">
                     <span class="font-medium text-indigo-700">${item.label}:</span>
                     <span class="font-bold text-gray-800">${item.value || '無紀錄'} ${item.unit}</span>
                 </div>
-            `).join('');
+            `).join('') + (member.survey ? `
+                <div class="pt-2">
+                    <span class="font-medium text-indigo-700 block mb-1">問卷完成狀態:</span>
+                    <div class="flex flex-wrap gap-2">${member.survey.split(/[,、]/).map(d => {
+                        const isV = d.includes('(v)'), isX = d.includes('(x)');
+                        const color = isV ? 'bg-green-200 text-green-900' : (isX ? 'bg-red-200 text-red-900' : 'bg-gray-200');
+                        return `<span class="px-3 py-1 rounded-full font-medium ${color} shadow-sm">${d.replace(/\((v|x)\)|\s/g, '')}</span>`;
+                    }).join('')}</div>
+                </div>` : '');
 
-            // 渲染問卷完成狀態 (特殊格式：日期(v)或日期(x))
-            if (member.survey) {
-                const surveyDates = member.survey.split(/[,、]/).map(d => d.trim()).filter(d => d);
-                const surveyHtml = surveyDates.map(d => {
-                    const isComplete = d.includes('(v)');
-                    const isPending = d.includes('(x)'); 
-                    
-                    let color = 'bg-gray-200 text-gray-900'; 
-                    
-                    if (isComplete) {
-                        color = 'bg-green-200 text-green-900'; // 完成 (v) -> 綠色
-                    } else if (isPending) {
-                        color = 'bg-red-200 text-red-900'; // 未完成 (x) -> 紅色
-                    }
-                    
-                    // *** 修正: 移除 (v) 和 (x) 標記，只保留日期部分 ***
-                    const dateText = d.replace(/\((v|x)\)|\s/g, ''); 
-                    
-                    return `<span class="px-3 py-1 rounded-full font-medium ${color} shadow-md">${dateText}</span>`;
-                }).join('');
-                
-                fitnessHtml += `
-                    <div class="pt-2">
-                        <span class="font-medium text-indigo-700 block mb-1">問卷完成狀態:</span>
-                        <div class="flex flex-wrap gap-2">${surveyHtml || '無紀錄'}</div>
-                    </div>
-                `;
-            } else {
-                 fitnessHtml += `
-                    <div class="pt-2">
-                        <span class="font-medium text-indigo-700 block mb-1">問卷完成狀態:</span>
-                        <div class="text-gray-500 italic">無紀錄</div>
-                    </div>
-                `;
-            }
-
-            modalFitnessData.innerHTML = fitnessHtml;
+            const renderTags = (dates, color) => dates.map(d => `<span class="px-3 py-1 rounded-full font-medium ${color} shadow-md">${d}</span>`).join('');
+            document.getElementById('modalPhysioDates').innerHTML = renderTags(physioData.allDates, 'bg-blue-200 text-blue-900') || '<span class="italic">無紀錄</span>';
+            document.getElementById('modalSportsTherapyDates').innerHTML = renderTags(sportsData.allDates, 'bg-yellow-200 text-yellow-900') || '<span class="italic">無紀錄</span>';
             
-            // ======================================================================================================
-            // 2. 治療日期渲染 (原版邏輯)
-            // ======================================================================================================
-            const renderDateTags = (formattedDates, colorClass) => {
-                if (formattedDates.length === 0) return '';
-                return formattedDates
-                    .map(date => `<span class="px-3 py-1 rounded-full font-medium ${colorClass} shadow-md">${date}</span>`)
-                    .join('');
-            };
-
-            const physioTags = renderDateTags(physioData.allDates, 'bg-blue-200 text-blue-900');
-            const sportsTags = renderDateTags(sportsData.allDates, 'bg-yellow-200 text-yellow-900'); // *** 修正: 這裡將顏色改為黃色 ***
-
-            modalPhysioDates.innerHTML = physioTags || '<span class="text-gray-500 italic">無紀錄</span>';
-            modalSportsTherapyDates.innerHTML = sportsTags || '<span class="text-gray-500 italic">無紀錄</span>';
-
-            const hasAnyDates = physioTags !== '' || sportsTags !== '';
-            modalNoDates.classList.toggle('hidden', hasAnyDates);
-
-            modal.classList.remove('opacity-0', 'pointer-events-none');
-            document.getElementById('modalContent').classList.add('scale-95');
+            document.getElementById('modal').classList.remove('opacity-0', 'pointer-events-none');
+            document.getElementById('modalContent').classList.remove('scale-95');
         }
 
-        // 關閉 Modal
         window.closeModal = function() {
-            modal.classList.add('opacity-0', 'pointer-events-none');
+            document.getElementById('modal').classList.add('opacity-0', 'pointer-events-none');
             document.getElementById('modalContent').classList.add('scale-95');
         }
 
-        // 點擊 Modal 外部關閉
-        if (modal) { // Check if modal element exists before adding listener
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    closeModal();
-                }
-            });
-        }
-
-
-        // 網頁載入完成後執行
-        window.onload = () => {
-            fetchDataAndRender();
-        };
+        window.onload = fetchDataAndRender;
     </script>
-
 </body>
 </html>

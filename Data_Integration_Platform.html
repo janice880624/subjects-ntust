@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>數據整合</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        .cycle-card { transition: all 0.2s ease; }
+        .cycle-card:hover { border-color: #f472b6; }
+        .upload-success { border-style: solid !important; border-color: #10b981 !important; background-color: #ecfdf5 !important; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen pb-20 text-slate-800">
+
+    <div class="max-w-6xl mx-auto px-4 py-12">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-black text-pink-700 mb-2">數據整合 <span class="text-slate-400 text-2xl">| 女性數據專業版</span></h1>
+            <p class="text-slate-600 font-medium italic">「運動科學」與「生理數據」的完美對齊</p>
+        </header>
+
+        <!-- 檔案上傳區 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <!-- Workouts Zone -->
+            <div id="workout-zone" class="bg-white p-8 rounded-2xl border-2 border-dashed border-blue-200 text-center cursor-pointer hover:bg-blue-50 transition-all shadow-sm group relative">
+                <input type="file" id="workout-input" class="hidden" accept=".csv,.xlsx,.xls">
+                <div id="workout-icon" class="text-blue-500 mb-3 flex justify-center text-5xl group-hover:scale-110 transition-transform">🏃</div>
+                <h3 class="font-bold text-lg">1. 上傳 Workouts</h3>
+                <p id="workout-name" class="text-slate-400 text-xs mt-1 font-medium">workouts csv or xlsx</p>
+                <div id="workout-badge" class="hidden absolute top-4 right-4 text-emerald-500 font-bold text-xs bg-emerald-100 px-2 py-1 rounded-full">已就緒</div>
+            </div>
+
+            <!-- Garmin Zone -->
+            <div id="garmin-zone" class="bg-white p-8 rounded-2xl border-2 border-dashed border-emerald-200 text-center cursor-pointer hover:bg-emerald-50 transition-all shadow-sm group relative text-center">
+                <input type="file" id="garmin-input" class="hidden" accept=".csv,.xlsx,.xls">
+                <div id="garmin-icon" class="text-emerald-500 mb-3 flex justify-center text-5xl group-hover:scale-110 transition-transform">⌚</div>
+                <h3 class="font-bold text-lg">2. 上傳 Garmin 數據</h3>
+                <p id="garmin-name" class="text-slate-400 text-xs mt-1 font-medium">garmin csv or xlsx</p>
+                <div id="garmin-badge" class="hidden absolute top-4 right-4 text-emerald-500 font-bold text-xs bg-emerald-100 px-2 py-1 rounded-full">已就緒</div>
+            </div>
+        </div>
+
+        <!-- 生理週期設定區 -->
+        <div class="bg-white rounded-3xl shadow-sm border border-pink-100 p-8 mb-10">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-xl font-black text-pink-600 flex items-center gap-2">
+                        <span>🌸 生理週期手動管理</span>
+                    </h2>
+                    <p class="text-slate-400 text-xs mt-1">
+                        系統將根據「開始日」與「排卵日」自動標註週期的三個黃金階段。
+                    </p>
+                </div>
+                <button id="add-cycle-btn" class="bg-pink-500 hover:bg-pink-600 text-white p-2 rounded-full shadow-lg transition-all active:scale-90 flex items-center justify-center">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4" /></svg>
+                </button>
+            </div>
+
+            <div id="cycle-list" class="space-y-4">
+                <!-- 週期項目 -->
+            </div>
+            
+            <div id="no-cycle-msg" class="text-center py-6 text-slate-300 italic text-sm border-2 border-dashed border-slate-50 rounded-xl">
+                請點擊右上方「+」按鈕新增本月或歷史生理週期
+            </div>
+        </div>
+
+        <div class="text-center">
+            <button id="process-btn" class="bg-slate-900 hover:bg-pink-700 text-white font-bold py-4 px-16 rounded-xl shadow-xl transition-all active:scale-95 disabled:bg-slate-300">
+                執行數據整合並產出 Final 表
+            </button>
+            <p id="status-msg" class="mt-4 text-sm font-bold text-pink-600 h-6"></p>
+        </div>
+
+        <!-- 結果展示區 -->
+        <div id="result-section" class="hidden mt-10">
+            <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
+                    <span class="font-bold text-slate-700">對齊預覽 (對應 fully_integrated_data.csv 格式)</span>
+                    <button id="download-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-lg text-sm shadow-md flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        下載匯整檔案 (.xlsx)
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-[11px] whitespace-nowrap">
+                        <thead id="table-head" class="bg-slate-100 text-slate-500 font-bold border-b"></thead>
+                        <tbody id="preview-body" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 設定欄位順序
+        const OUTPUT_HEADERS = [
+            "Date", "Cycle_Phase", "WorkoutType", "DistanceInMeters", "PowerAverage", "PowerMax", "Energy", "AthleteComments", 
+            "TimeTotalInHours", "VelocityAverage", "VelocityMax", "CadenceAverage", "CadenceMax", "HeartRateAverage", 
+            "HeartRateMax", "TorqueAverage", "IF", "TSS", "Rpe", "Feeling", 
+            "Measurement Time", "BBT", "Sleep Score", "RHR", "Body Battery", "Pulse Ox", "Respiration", 
+            "HRV Status", "Sleep Quality", "Sleep Duration", "Sleep Need", "Bedtime", "Wake Time", "Deep", 
+            "Light", "REM", "Awake / Restless", "Calories", "Pulse Ox.1", "Respiration_Awake_Avg", 
+            "Respiration_Low", "Respiration_High", "Resting HR", "Max HR", "Stress_Avg", "Stress_Resting", 
+            "Stress_Low", "Stress_Mid", "Stress_High", "Training Status", "HRV", "Acute Training Load"
+        ];
+
+        // 分鐘轉換欄位
+        const MINUTE_CONVERSION_HEADERS = [
+            "Sleep Duration", "Deep", "Light", "REM", "Awake / Restless", 
+            "Stress_Resting", "Stress_Low", "Stress_Mid", "Stress_High"
+        ];
+
+        let workoutRaw = null;
+        let garminRaw = null;
+
+        // UI 元件
+        const workoutInput = document.getElementById('workout-input');
+        const garminInput = document.getElementById('garmin-input');
+        const workoutZone = document.getElementById('workout-zone');
+        const garminZone = document.getElementById('garmin-zone');
+        const addCycleBtn = document.getElementById('add-cycle-btn');
+        const cycleList = document.getElementById('cycle-list');
+        const noCycleMsg = document.getElementById('no-cycle-msg');
+
+        // 更新上傳區狀態顯示
+        function updateZoneStatus(type, isSuccess) {
+            const zone = document.getElementById(`${type}-zone`);
+            const icon = document.getElementById(`${type}-icon`);
+            const badge = document.getElementById(`${type}-badge`);
+            const originalIcon = type === 'workout' ? '🏃' : '⌚';
+
+            if (isSuccess) {
+                zone.classList.add('upload-success');
+                icon.innerText = '✅';
+                badge.classList.remove('hidden');
+            } else {
+                zone.classList.remove('upload-success');
+                icon.innerText = originalIcon;
+                badge.classList.add('hidden');
+            }
+        }
+
+        addCycleBtn.onclick = () => {
+            const id = Date.now();
+            const div = document.createElement('div');
+            div.className = "cycle-card grid grid-cols-1 sm:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 relative pr-12 shadow-sm animate-in fade-in duration-300";
+            div.id = `cycle-${id}`;
+            div.innerHTML = `
+                <div>
+                    <label class="block text-[10px] font-bold text-pink-500 mb-1 tracking-wider">月經開始 (Period Start)</label>
+                    <input type="date" class="cycle-start w-full bg-white border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-pink-500 mb-1 tracking-wider">月經結束 (Period End)</label>
+                    <input type="date" class="cycle-end w-full bg-white border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-pink-500 mb-1 tracking-wider">排卵日 (Ovulation Day)</label>
+                    <input type="date" class="cycle-ovul w-full bg-white border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none">
+                </div>
+                <div class="flex items-center justify-end h-full">
+                    <button onclick="removeCycle(${id})" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 transition-colors p-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                </div>
+            `;
+            cycleList.appendChild(div);
+            noCycleMsg.classList.add('hidden');
+        };
+
+        window.removeCycle = (id) => {
+            const el = document.getElementById(`cycle-${id}`);
+            el.remove();
+            if (cycleList.children.length === 0) noCycleMsg.classList.remove('hidden');
+        };
+
+        // 精確生理週期判定
+        function getCyclePhase(targetDate, cycles) {
+            const d = new Date(targetDate);
+            d.setHours(0,0,0,0);
+            if (isNaN(d.getTime())) return "";
+
+            const sorted = [...cycles].sort((a, b) => new Date(a.start) - new Date(b.start));
+
+            for (let i = 0; i < sorted.length; i++) {
+                const c = sorted[i];
+                const start = new Date(c.start); start.setHours(0,0,0,0);
+                const end = new Date(c.end); end.setHours(0,0,0,0);
+                const ovul = new Date(c.ovul); ovul.setHours(0,0,0,0);
+                
+                if (d.getTime() === ovul.getTime()) return "排卵日";
+                if (d >= start && d <= end) return "月經期";
+                if (d >= start && d < ovul) return "濾泡期";
+                
+                const next = sorted[i + 1];
+                const nextStart = next ? new Date(next.start) : null;
+                if (nextStart) nextStart.setHours(0,0,0,0);
+
+                if (d > ovul) {
+                    if (!nextStart || d < nextStart) return "黃體期";
+                }
+            }
+            return "";
+        }
+
+        // 時間轉分鐘邏輯
+        function timeToMinutes(val) {
+            if (!val || ["--", "未戴錶", "未支援", "空白"].includes(String(val).trim())) return val;
+            let s = String(val).trim();
+            if (s.includes('時')) {
+                const h = s.match(/(\d+)\s*時/);
+                const m = s.match(/(\d+)\s*(?:分鐘|分)/);
+                return (parseInt(h ? h[1] : 0) * 60) + parseInt(m ? m[1] : 0);
+            }
+            if (s.includes('分') && !s.includes(':')) {
+                const m = s.match(/(\d+)/);
+                return m ? parseInt(m[1]) : val;
+            }
+            if (s.includes(':')) {
+                const p = s.split(':');
+                if (p.length >= 2) return parseInt(p[0]) * 60 + parseInt(p[1]) + Math.round((p[2] ? parseInt(p[2]) : 0) / 60);
+            }
+            if (!isNaN(parseFloat(s.replace(/,/g, ''))) && !s.includes('/')) return parseFloat(s.replace(/,/g, ''));
+            return val;
+        }
+
+        // 日期正規化
+        function normalizeDate(val) {
+            if (!val) return "";
+            let s = String(val).trim().split(' ')[0].replace(/\//g, '-');
+            let p = s.split('-');
+            if (p.length === 3) {
+                let y, m, d;
+                if (p[0].length === 4) { y = p[0]; m = p[1]; d = p[2]; } 
+                else {
+                    let yy = parseInt(p[2]);
+                    y = yy < 100 ? "20" + String(yy).padStart(2, '0') : String(yy);
+                    m = p[0]; d = p[1];
+                    if (parseInt(m) > 12) [m, d] = [d, m];
+                }
+                return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            }
+            return s;
+        }
+
+        function formatTime24H(val) {
+            if (!val || ["--", "未戴錶", "未支援"].includes(String(val).trim())) return val;
+            let s = String(val).trim();
+            if (/^\d{3,4}$/.test(s)) {
+                const p = s.padStart(4, '0');
+                return `${p.slice(0, 2)}:${p.slice(2, 4)}:00`;
+            }
+            const match = s.match(/(上午|下午)\s*(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+            if (match) {
+                let h = parseInt(match[2], 10);
+                if (match[1] === '下午' && h < 12) h += 12;
+                if (match[1] === '上午' && h === 12) h = 0;
+                return `${String(h).padStart(2, '0')}:${match[3]}:${match[4] || "00"}`;
+            }
+            return s;
+        }
+
+        function parseFile(file) {
+            return new Promise((resolve, reject) => {
+                const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        let data = [];
+                        if (isExcel) {
+                            const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                            data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { raw: false });
+                        } else {
+                            const res = Papa.parse(e.target.result, { header: true, skipEmptyLines: true });
+                            data = res.data;
+                        }
+                        resolve(data.map(row => {
+                            const nr = {};
+                            Object.keys(row).forEach(k => { nr[String(k).trim()] = row[k]; });
+                            return nr;
+                        }));
+                    } catch (err) { reject(err); }
+                };
+                reader.onerror = reject;
+                if (isExcel) reader.readAsArrayBuffer(file);
+                else reader.readAsText(file);
+            });
+        }
+
+        workoutZone.onclick = () => workoutInput.click();
+        garminZone.onclick = () => garminInput.click();
+
+        workoutInput.onchange = async (e) => {
+            const f = e.target.files[0]; 
+            if (f) { 
+                try {
+                    workoutRaw = await parseFile(f); 
+                    document.getElementById('workout-name').innerText = f.name;
+                    updateZoneStatus('workout', true);
+                } catch (err) {
+                    alert("Workouts 檔案讀取失敗");
+                    updateZoneStatus('workout', false);
+                }
+            }
+        };
+
+        garminInput.onchange = async (e) => {
+            const f = e.target.files[0]; 
+            if (f) { 
+                try {
+                    garminRaw = await parseFile(f); 
+                    document.getElementById('garmin-name').innerText = f.name;
+                    updateZoneStatus('garmin', true);
+                } catch (err) {
+                    alert("Garmin 數據讀取失敗");
+                    updateZoneStatus('garmin', false);
+                }
+            }
+        };
+
+        document.getElementById('process-btn').onclick = () => {
+            if (!workoutRaw || !garminRaw) { alert("請上傳檔案並設定生理週期"); return; }
+
+            const cycleData = [];
+            cycleList.querySelectorAll('.cycle-card').forEach(row => {
+                const s = row.querySelector('.cycle-start').value;
+                const e = row.querySelector('.cycle-end').value;
+                const o = row.querySelector('.cycle-ovul').value;
+                if (s && e && o) cycleData.push({ start: s, end: e, ovul: o });
+            });
+
+            const wMap = {};
+            workoutRaw.forEach(w => {
+                const dk = normalizeDate(w.WorkoutDay || w.Date);
+                if (dk) { if (!wMap[dk]) wMap[dk] = []; wMap[dk].push(w); }
+            });
+
+            const finalData = garminRaw.map(gRow => {
+                const out = {};
+                const rawDate = gRow.Date;
+                const dKey = normalizeDate(rawDate);
+                out["Date"] = rawDate;
+                out["Cycle_Phase"] = getCyclePhase(dKey, cycleData);
+
+                const ws = wMap[dKey] || [];
+                out["WorkoutType"] = ws.map(x => x.WorkoutType || x.Title).join(' + ');
+                out["DistanceInMeters"] = ws.reduce((sum, x) => sum + (parseFloat(x.DistanceInMeters) || 0), 0) || "";
+                out["PowerAverage"] = ws.length === 1 ? (ws[0].PowerAverage || "") : "";
+                out["PowerMax"] = ws.length === 1 ? (ws[0].PowerMax || "") : "";
+                out["Energy"] = ws.reduce((sum, x) => sum + (parseFloat(x.Energy) || 0), 0) || "";
+                out["AthleteComments"] = ws.map(x => x.AthleteComments).filter(Boolean).join(' | ');
+                out["TimeTotalInHours"] = ws.reduce((sum, x) => sum + (parseFloat(x.TimeTotalInHours) || 0), 0) || "";
+                out["VelocityAverage"] = ws.length === 1 ? (ws[0].VelocityAverage || "") : "";
+                out["VelocityMax"] = ws.length === 1 ? (ws[0].VelocityMax || "") : "";
+                out["CadenceAverage"] = ws.length === 1 ? (ws[0].CadenceAverage || "") : "";
+                out["CadenceMax"] = ws.length === 1 ? (ws[0].CadenceMax || "") : "";
+                out["HeartRateAverage"] = ws.length === 1 ? (ws[0].HeartRateAverage || "") : "";
+                out["HeartRateMax"] = ws.length === 1 ? (ws[0].HeartRateMax || "") : "";
+                out["TorqueAverage"] = ws.length === 1 ? (ws[0].TorqueAverage || "") : "";
+                out["IF"] = ws.length === 1 ? (ws[0].IF || "") : "";
+                out["TSS"] = ws.reduce((sum, x) => sum + (parseFloat(x.TSS) || 0), 0) || "";
+                out["Rpe"] = ws.map(x => x.Rpe || x.RPE).filter(Boolean).join(' / ');
+                out["Feeling"] = ws.map(x => x.Feeling).filter(Boolean).join(', ');
+
+                let pOxValues = [];
+                Object.keys(gRow).forEach(k => { if (k.startsWith("Pulse Ox")) pOxValues.push(gRow[k]); });
+
+                OUTPUT_HEADERS.slice(20).forEach(h => {
+                    let val = gRow[h] || "";
+                    if (h === "Pulse Ox") val = pOxValues[0] || "";
+                    if (h === "Pulse Ox.1") val = pOxValues[1] || "";
+                    if (h === "Calories" && typeof val === "string") val = val.replace(/,/g, '');
+                    if (["Measurement Time", "Bedtime", "Wake Time"].includes(h)) val = formatTime24H(val);
+                    if (MINUTE_CONVERSION_HEADERS.includes(h)) val = timeToMinutes(val);
+                    out[h] = val;
+                });
+                return out;
+            });
+
+            renderPreview(finalData);
+            document.getElementById('result-section').classList.remove('hidden');
+            document.getElementById('status-msg').innerText = "數據整合完成！";
+            window.finalResult = finalData;
+        };
+
+        function renderPreview(data) {
+            const body = document.getElementById('preview-body');
+            document.getElementById('table-head').innerHTML = `<tr>${OUTPUT_HEADERS.map(h => `<th class="px-4 py-2">${h}</th>`).join('')}</tr>`;
+            
+            let start = data.findIndex(r => r.WorkoutType !== "" || r.Cycle_Phase !== "");
+            if (start === -1) start = 0;
+            
+            body.innerHTML = data.slice(start, start + 40).map(row => {
+                let rowStyle = row.Cycle_Phase === '月經期' ? 'bg-pink-50' : (row.Cycle_Phase === '排卵日' ? 'bg-purple-50' : '');
+                return `
+                <tr class="${rowStyle} hover:bg-slate-100 border-b">
+                    ${OUTPUT_HEADERS.map(h => {
+                        let val = row[h] || "";
+                        let cls = "";
+                        if (h === 'Cycle_Phase') {
+                            if (val === '月經期') cls = 'text-pink-600 font-bold';
+                            else if (val === '黃體期') cls = 'text-orange-500 font-bold';
+                            else if (val === '濾泡期') cls = 'text-emerald-500 font-bold font-black';
+                            else if (val === '排卵日') cls = 'text-purple-600 font-black';
+                        }
+                        if (h === 'WorkoutType' && val) cls += ' text-blue-600 font-bold';
+                        return `<td class="px-4 py-2 ${cls}">${val}</td>`;
+                    }).join('')}
+                </tr>
+                `;
+            }).join('');
+        }
+
+        document.getElementById('download-btn').onclick = () => {
+            const ws = XLSX.utils.json_to_sheet(window.finalResult, { header: OUTPUT_HEADERS });
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Combined_Health_Data");
+            XLSX.writeFile(wb, `女生運動數據整合表_${new Date().toISOString().slice(0,10)}.xlsx`);
+        };
+    </script>
+</body>
+</html>

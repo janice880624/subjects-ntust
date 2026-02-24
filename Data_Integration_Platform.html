@@ -48,7 +48,7 @@
             <div class="flex justify-between items-center mb-6">
                 <div>
                     <h2 class="text-xl font-black text-pink-600 flex items-center gap-2"><span>🌸 生理週期設定</span></h2>
-                    <p class="text-slate-400 text-xs mt-1">濾泡期 (開始~排卵前) | 排卵日 (當天) | 黃體期 (排卵後~下週期開始前)</p>
+                    <p class="text-slate-400 text-xs mt-1">標註：濾泡期 (開始~排卵前) | 排卵日 (當天) | 黃體期 (排卵後~下週期開始前)</p>
                 </div>
                 <button id="add-cycle-btn" class="bg-pink-500 hover:bg-pink-600 text-white p-2 rounded-full shadow-lg transition-all active:scale-90">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4" /></svg>
@@ -66,20 +66,26 @@
         </div>
 
         <!-- Debug Console -->
-        <div id="debug-log" class="mt-8 p-4 bg-slate-900 text-green-400 font-mono text-[10px] rounded-xl h-32 overflow-y-auto hidden">
+        <div id="debug-log" class="mt-8 p-4 bg-slate-900 text-green-400 font-mono text-[10px] rounded-xl h-32 overflow-y-auto hidden text-left">
             <div>[系統初始化完成]</div>
         </div>
 
         <!-- 結果展示區 -->
         <div id="result-section" class="hidden mt-10 overflow-hidden rounded-2xl shadow-xl border border-slate-200 bg-white">
-            <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
-                <span class="font-bold text-slate-700">數據整合預覽</span>
-                <button id="download-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-lg text-sm shadow-md flex items-center gap-2 transition-all active:scale-95">
+            <div class="p-6 bg-slate-50 border-b flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex flex-col gap-1 w-full md:w-auto text-left">
+                    <span class="font-bold text-slate-700">數據整合預覽</span>
+                    <div class="flex items-center gap-2 mt-2">
+                        <label for="filename-input" class="text-xs font-bold text-slate-400 uppercase tracking-wider">設定導出檔名：</label>
+                        <input type="text" id="filename-input" class="bg-white border border-slate-200 rounded px-3 py-1 text-sm font-bold text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 w-full md:w-64" placeholder="輸入檔案名稱">
+                    </div>
+                </div>
+                <button id="download-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-xl text-sm shadow-md flex items-center gap-2 transition-all active:scale-95 w-full md:w-auto justify-center">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     下載整合檔案 (.xlsx)
                 </button>
             </div>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto text-left">
                 <table class="w-full text-left text-[11px] whitespace-nowrap">
                     <thead id="table-head" class="bg-slate-100 text-slate-500 font-bold border-b"></thead>
                     <tbody id="preview-body" class="divide-y divide-slate-100"></tbody>
@@ -100,11 +106,7 @@
             "Stress_Low", "Stress_Mid", "Stress_High", "Training Status", "HRV", "Acute Training Load"
         ];
 
-        // 更新清單：加入 Sleep Need 到分鐘轉換清單
-        const MINUTE_CONVERSION_HEADERS = [
-            "Sleep Duration", "Sleep Need", "Deep", "Light", "REM", 
-            "Awake / Restless", "Stress_Resting", "Stress_Low", "Stress_Mid", "Stress_High"
-        ];
+        const MINUTE_CONVERSION_HEADERS = ["Sleep Duration", "Sleep Need", "Deep", "Light", "REM", "Awake / Restless", "Stress_Resting", "Stress_Low", "Stress_Mid", "Stress_High"];
 
         let workoutRaw = null;
         let garminRaw = null;
@@ -158,21 +160,17 @@
             if (addCycleBtn) addCycleBtn.onclick = () => addCycleRow();
             if (processBtn) processBtn.onclick = () => startProcessing();
             if (downloadBtn) downloadBtn.onclick = () => downloadResult();
+
+            const today = new Date().toISOString().slice(0,10).replace(/-/g, '');
+            document.getElementById('filename-input').value = `跑步健康整合_${today}`;
         };
 
         function updateZoneStatus(type, isSuccess) {
             const zone = document.getElementById(`${type}-zone`);
             const icon = document.getElementById(`${type}-icon`);
             const badge = document.getElementById(`${type}-badge`);
-            if (isSuccess) { 
-                zone.classList.add('upload-success'); 
-                icon.innerText = '✅'; 
-                badge.classList.remove('hidden'); 
-            } else { 
-                zone.classList.remove('upload-success'); 
-                icon.innerText = type === 'workout' ? '🏃' : '⌚'; 
-                badge.classList.add('hidden'); 
-            }
+            if (isSuccess) { zone.classList.add('upload-success'); icon.innerText = '✅'; badge.classList.remove('hidden'); }
+            else { zone.classList.remove('upload-success'); icon.innerText = type === 'workout' ? '🏃' : '⌚'; badge.classList.add('hidden'); }
         }
 
         function addCycleRow() {
@@ -180,7 +178,7 @@
             const noCycleMsg = document.getElementById('no-cycle-msg');
             const id = Date.now();
             const div = document.createElement('div');
-            div.className = "cycle-card grid grid-cols-1 sm:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 relative pr-12 shadow-sm animate-in fade-in duration-200";
+            div.className = "cycle-card grid grid-cols-1 sm:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 relative pr-12 shadow-sm animate-in fade-in duration-200 text-left";
             div.id = `cycle-${id}`;
             div.innerHTML = `
                 <div><label class="block text-[10px] font-bold text-pink-500 mb-1">月經開始</label>
@@ -238,7 +236,7 @@
             return val;
         }
 
-        // 專用於 12 小時制轉換，輸出格式強制為小寫 "am 7:00"
+        // 強制小寫 am/pm 12小時制轉換
         function convertTo12Hour(val) {
             if (!val || ["--", "未戴錶", "未支援"].includes(String(val).trim())) return val;
             let standardized = formatTime24H(val);
@@ -247,13 +245,15 @@
             let parts = standardized.split(':');
             let h = parseInt(parts[0]);
             let m = parts[1];
-            let ampm = h >= 12 ? 'pm' : 'am'; // 強制小寫
+            let ampm = h >= 12 ? 'am' : 'am'; 
+            if (h >= 12) ampm = 'pm';
+            
             h = h % 12;
             if (h === 0) h = 12;
             return `${ampm} ${h}:${m}`;
         }
 
-        // 日期正規化，輸出格式為 2025/6/30
+        // 日期正規化 YYYY/M/D
         function normalizeDateDisplay(val) {
             const normalized = normalizeDate(val);
             if (!normalized) return val;
@@ -289,12 +289,17 @@
                 const p = s.padStart(4, '0'); 
                 return `${p.slice(0, 2)}:${p.slice(2, 4)}:00`; 
             }
-            const match = s.match(/(上午|下午)\s*(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+            // 支援 case-insensitive 的 AM/PM
+            const match = s.match(/(上午|下午|am|pm|AM|PM)\s*(\d{1,2}):(\d{2})(?::(\d{2}))?/i);
             if (match) {
+                let indicator = match[1].toLowerCase();
                 let h = parseInt(match[2], 10); 
-                if (match[1] === '下午' && h < 12) h += 12; 
-                if (match[1] === '上午' && h === 12) h = 0;
-                return `${String(h).padStart(2, '0')}:${match[3]}:${match[4] || "00"}`;
+                let m = match[3];
+                let sec = match[4] || "00";
+                
+                if ((indicator === '下午' || indicator === 'pm') && h < 12) h += 12; 
+                if ((indicator === '上午' || indicator === 'am') && h === 12) h = 0;
+                return `${String(h).padStart(2, '0')}:${m}:${sec}`;
             }
             if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)) {
                 let p = s.split(':');
@@ -327,7 +332,7 @@
 
         function startProcessing() {
             if (!workoutRaw || !garminRaw) { alert("請先上傳兩個檔案"); return; }
-            log("開始執行數據配對引擎...");
+            log("開始執行數據整合引擎...");
             const cycleData = [];
             document.querySelectorAll('.cycle-card').forEach(row => {
                 const s = row.querySelector('.cycle-start').value, e = row.querySelector('.cycle-end').value, o = row.querySelector('.cycle-ovul').value;
@@ -344,7 +349,6 @@
             const finalData = garminRaw.map(gRow => {
                 const out = {}; 
                 const rawDate = gRow.Date, dKey = normalizeDate(rawDate);
-                
                 out["Date"] = normalizeDateDisplay(rawDate);
                 out["Cycle_Phase"] = getCyclePhase(dKey, cycleData);
 
@@ -372,20 +376,18 @@
                     if (h === "Pulse Ox.1") val = pulseOxList[1] || "";
                     if (h === "Calories" && typeof val === "string") val = val.replace(/,/g, '');
                     
-                    // 僅針對 Measurement Time 執行轉換
-                    if (h === "Measurement Time") {
+                    // 針對所有時間相關欄位執行 12 小時制轉換並強制小寫
+                    if (["Measurement Time", "Bedtime", "Wake Time"].includes(h)) {
                         val = convertTo12Hour(val);
                     }
                     
-                    // 執行分鐘轉換
                     if (MINUTE_CONVERSION_HEADERS.includes(h)) val = timeToMinutes(val);
-                    
                     out[h] = val;
                 });
                 return out;
             });
 
-            log(`數據整合完成。成功匹配 ${matchCount} 天資料。`);
+            log(`數據整合完成。成功配對 ${matchCount} 天資料。`);
             renderPreview(finalData);
             document.getElementById('result-section').classList.remove('hidden');
             window.finalResult = finalData;
@@ -411,10 +413,11 @@
 
         function downloadResult() {
             if (!window.finalResult) return;
+            const customName = document.getElementById('filename-input').value || '跑步整合數據_Final';
             const ws = XLSX.utils.json_to_sheet(window.finalResult, { header: OUTPUT_HEADERS });
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Health_Data");
-            XLSX.writeFile(wb, `跑步整合數據_Final_${new Date().toISOString().slice(0,10)}.xlsx`);
+            XLSX.writeFile(wb, `${customName}.xlsx`);
         }
     </script>
 </body>

@@ -21,7 +21,7 @@
 
     <div class="max-w-6xl mx-auto px-4 py-12">
         <header class="text-center mb-10">
-            <h1 class="text-4xl font-black text-pink-700 mb-2">數據整合</h1>
+            <h1 class="text-4xl font-black text-pink-700 mb-2">數據整合 <span class="text-slate-400 text-2xl">| 女性數據專業版</span></h1>
         </header>
 
         <!-- 檔案上傳區 -->
@@ -101,12 +101,13 @@
             "HeartRateMax", "TorqueAverage", "IF", "TSS", "Rpe", "Feeling", 
             "Measurement Time", "BBT", "Sleep Score", "RHR", "Body Battery", "Pulse Ox", "Respiration", 
             "HRV Status", "Sleep Quality", "Sleep Duration", "Sleep Need", "Bedtime", "Wake Time", "Deep", 
-            "Light", "REM", "Awake / Restless", "Calories", "Pulse Ox.1", "Respiration_Awake_Avg", 
+            "Light", "REM", "Awake", "Restless", "Calories", "Pulse Ox.1", "Respiration_Awake_Avg", 
             "Respiration_Low", "Respiration_High", "Resting HR", "Max HR", "Stress_Avg", "Stress_Resting", 
             "Stress_Low", "Stress_Mid", "Stress_High", "Training Status", "HRV", "Acute Training Load"
         ];
 
-        const MINUTE_CONVERSION_HEADERS = ["Sleep Duration", "Sleep Need", "Deep", "Light", "REM", "Awake / Restless", "Stress_Resting", "Stress_Low", "Stress_Mid", "Stress_High"];
+        // 更新清單：拆解後只針對 Awake_Min 進行分鐘轉換校正
+        const MINUTE_CONVERSION_HEADERS = ["Sleep Duration", "Sleep Need", "Deep", "Light", "REM", "Awake_Min", "Stress_Resting", "Stress_Low", "Stress_Mid", "Stress_High"];
 
         let workoutRaw = null;
         let garminRaw = null;
@@ -236,31 +237,23 @@
             return val;
         }
 
-        // 強制小寫 am/pm 12小時制轉換
         function convertTo12Hour(val) {
             if (!val || ["--", "未戴錶", "未支援"].includes(String(val).trim())) return val;
             let standardized = formatTime24H(val);
             if (!standardized || standardized.indexOf(':') === -1) return val;
-            
             let parts = standardized.split(':');
             let h = parseInt(parts[0]);
             let m = parts[1];
-            let ampm = h >= 12 ? 'am' : 'am'; 
-            if (h >= 12) ampm = 'pm';
-            
-            h = h % 12;
-            if (h === 0) h = 12;
+            let ampm = h >= 12 ? 'pm' : 'am'; 
+            h = h % 12; if (h === 0) h = 12;
             return `${ampm} ${h}:${m}`;
         }
 
-        // 日期正規化 YYYY/M/D
         function normalizeDateDisplay(val) {
             const normalized = normalizeDate(val);
             if (!normalized) return val;
             const parts = normalized.split('-'); 
-            if (parts.length === 3) {
-                return `${parts[0]}/${parseInt(parts[1])}/${parseInt(parts[2])}`;
-            }
+            if (parts.length === 3) return `${parts[0]}/${parseInt(parts[1])}/${parseInt(parts[2])}`;
             return normalized;
         }
 
@@ -285,25 +278,17 @@
         function formatTime24H(val) {
             if (!val || ["--", "未戴錶", "未支援"].includes(String(val).trim())) return val;
             let s = String(val).trim();
-            if (/^\d{3,4}$/.test(s)) { 
-                const p = s.padStart(4, '0'); 
-                return `${p.slice(0, 2)}:${p.slice(2, 4)}:00`; 
-            }
-            // 支援 case-insensitive 的 AM/PM
+            if (/^\d{3,4}$/.test(s)) { const p = s.padStart(4, '0'); return `${p.slice(0, 2)}:${p.slice(2, 4)}:00`; }
             const match = s.match(/(上午|下午|am|pm|AM|PM)\s*(\d{1,2}):(\d{2})(?::(\d{2}))?/i);
             if (match) {
                 let indicator = match[1].toLowerCase();
-                let h = parseInt(match[2], 10); 
-                let m = match[3];
-                let sec = match[4] || "00";
-                
+                let h = parseInt(match[2], 10); let m = match[3]; let sec = match[4] || "00";
                 if ((indicator === '下午' || indicator === 'pm') && h < 12) h += 12; 
                 if ((indicator === '上午' || indicator === 'am') && h === 12) h = 0;
                 return `${String(h).padStart(2, '0')}:${m}:${sec}`;
             }
             if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)) {
-                let p = s.split(':');
-                return `${p[0].padStart(2, '0')}:${p[1].padStart(2, '0')}:${(p[2] || "00").padStart(2, '0')}`;
+                let p = s.split(':'); return `${p[0].padStart(2, '0')}:${p[1].padStart(2, '0')}:${(p[2] || "00").padStart(2, '0')}`;
             }
             return s;
         }
@@ -367,21 +352,39 @@
                 out["Rpe"] = ws.map(x => x.Rpe || x.RPE).filter(Boolean).join(' / ');
                 out["Feeling"] = ws.map(x => x.Feeling).filter(Boolean).join(', ');
 
+                // 彈性處理 Garmin 數據
                 let pulseOxList = []; Object.keys(gRow).forEach(k => { if (k.toLowerCase().includes("pulse ox")) pulseOxList.push(gRow[k]); });
                 
+                // 智慧拆解 Awake / Restless
+                const arRaw = String(gRow["Awake / Restless"] || "").trim();
+                let awakeVal = "";
+                let restlessVal = "";
+                if (arRaw.includes('•')) {
+                    const parts = arRaw.split('•');
+                    awakeVal = parts[0].trim();
+                    const m = parts[1].match(/\d+/);
+                    if (m) restlessVal = m[0];
+                } else if (arRaw && arRaw !== "--") {
+                    awakeVal = arRaw;
+                } else if (arRaw === "--") {
+                    awakeVal = "--";
+                }
+
                 const startIdx = OUTPUT_HEADERS.indexOf("Measurement Time");
                 OUTPUT_HEADERS.slice(startIdx).forEach(h => {
-                    let val = gRow[h] || "";
-                    if (h === "Pulse Ox") val = pulseOxList[0] || "";
-                    if (h === "Pulse Ox.1") val = pulseOxList[1] || "";
-                    if (h === "Calories" && typeof val === "string") val = val.replace(/,/g, '');
-                    
-                    // 針對所有時間相關欄位執行 12 小時制轉換並強制小寫
-                    if (["Measurement Time", "Bedtime", "Wake Time"].includes(h)) {
-                        val = convertTo12Hour(val);
+                    let val = "";
+                    if (h === "Awake_Min") {
+                        val = timeToMinutes(awakeVal);
+                    } else if (h === "Restless_Count") {
+                        val = restlessVal;
+                    } else {
+                        val = gRow[h] || "";
+                        if (h === "Pulse Ox") val = pulseOxList[0] || "";
+                        if (h === "Pulse Ox.1") val = pulseOxList[1] || "";
+                        if (h === "Calories" && typeof val === "string") val = val.replace(/,/g, '');
+                        if (["Measurement Time", "Bedtime", "Wake Time"].includes(h)) val = convertTo12Hour(val);
+                        if (MINUTE_CONVERSION_HEADERS.includes(h)) val = timeToMinutes(val);
                     }
-                    
-                    if (MINUTE_CONVERSION_HEADERS.includes(h)) val = timeToMinutes(val);
                     out[h] = val;
                 });
                 return out;

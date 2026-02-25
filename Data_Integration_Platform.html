@@ -107,7 +107,7 @@
         ];
 
         // 更新清單：拆解後只針對 Awake_Min 進行分鐘轉換校正
-        const MINUTE_CONVERSION_HEADERS = ["Sleep Duration", "Sleep Need", "Deep", "Light", "REM", "Awake_Min", "Stress_Resting", "Stress_Low", "Stress_Mid", "Stress_High"];
+        const MINUTE_CONVERSION_HEADERS = ["Sleep Duration", "Sleep Need", "Deep", "Light", "REM", "Awake", "Stress_Resting", "Stress_Low", "Stress_Mid", "Stress_High"];
 
         let workoutRaw = null;
         let garminRaw = null;
@@ -373,9 +373,9 @@
                 const startIdx = OUTPUT_HEADERS.indexOf("Measurement Time");
                 OUTPUT_HEADERS.slice(startIdx).forEach(h => {
                     let val = "";
-                    if (h === "Awake_Min") {
+                    if (h === "Awake") {
                         val = timeToMinutes(awakeVal);
-                    } else if (h === "Restless_Count") {
+                    } else if (h === "Restless") {
                         val = restlessVal;
                     } else {
                         val = gRow[h] || "";

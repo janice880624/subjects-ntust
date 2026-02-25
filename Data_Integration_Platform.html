@@ -106,7 +106,6 @@
             "Stress_Low", "Stress_Mid", "Stress_High", "Training Status", "HRV", "Acute Training Load"
         ];
 
-        // 更新清單：拆解後只針對 Awake_Min 進行分鐘轉換校正
         const MINUTE_CONVERSION_HEADERS = ["Sleep Duration", "Sleep Need", "Deep", "Light", "REM", "Awake", "Stress_Resting", "Stress_Low", "Stress_Mid", "Stress_High"];
 
         let workoutRaw = null;
@@ -341,13 +340,27 @@
                 if (ws.length > 0) matchCount++;
 
                 out["WorkoutType"] = ws.map(x => x.WorkoutType || x.Title).join(' + ');
-                const totalMeters = ws.reduce((sum, x) => sum + (parseFloat(String(x.DistanceInMeters).replace(/,/g, '')) || 0), 0);
-                out["Distance_KM"] = totalMeters > 0 ? (totalMeters / 1000).toFixed(2) : "";
-                const totalHours = ws.reduce((sum, x) => sum + (parseFloat(String(x.TimeTotalInHours).replace(/,/g, '')) || 0), 0);
-                out["Duration_Min"] = totalHours > 0 ? (totalHours * 60).toFixed(1) : "";
+                
+                // 距離 (KM) 分運動顯示
+                out["Distance_KM"] = ws.map(x => {
+                    const meters = parseFloat(String(x.DistanceInMeters || 0).replace(/,/g, '')) || 0;
+                    return (meters / 1000).toFixed(2);
+                }).join(' + ');
 
-                ["PowerAverage", "PowerMax", "Energy", "VelocityAverage", "VelocityMax", "CadenceAverage", "CadenceMax", "HeartRateAverage", "HeartRateMax", "TorqueAverage", "IF", "TSS"].forEach(h => {
-                    out[h] = ws.length > 0 ? ws[0][h] || "" : "";
+                // 時間 (Min) 分運動顯示
+                out["Duration_Min"] = ws.map(x => {
+                    const hours = parseFloat(String(x.TimeTotalInHours || 0).replace(/,/g, '')) || 0;
+                    return (hours * 60).toFixed(1);
+                }).join(' + ');
+
+                // TSS 分運動顯示
+                out["TSS"] = ws.map(x => {
+                    const tssVal = parseFloat(String(x.TSS || 0).replace(/,/g, '')) || 0;
+                    return tssVal.toFixed(1);
+                }).join(' + ');
+
+                ["PowerAverage", "PowerMax", "Energy", "VelocityAverage", "VelocityMax", "CadenceAverage", "CadenceMax", "HeartRateAverage", "HeartRateMax", "TorqueAverage", "IF"].forEach(h => {
+                    out[h] = ws.map(x => x[h] || "").join(' + ');
                 });
                 out["Rpe"] = ws.map(x => x.Rpe || x.RPE).filter(Boolean).join(' / ');
                 out["Feeling"] = ws.map(x => x.Feeling).filter(Boolean).join(', ');
